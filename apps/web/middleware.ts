@@ -58,17 +58,22 @@ const isPublicRoute = (pathname: string): boolean => {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Skip middleware for Next.js internals and static files
+  // Skip middleware for Next.js internals and static files (but NOT /api — see CRIT-2)
   if (
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
     pathname.includes('.') // files with extensions
   ) {
     return NextResponse.next();
   }
 
-  // Update session (refresh cookies, check blacklist)
+  // Update session (refresh cookies, check blacklist, validate JWT)
+  // This runs for ALL routes including /api to ensure suspended users are blocked
   const response = await updateSession(request);
+
+  // For API routes, session update is sufficient (blacklist check is in updateSession)
+  if (pathname.startsWith('/api')) {
+    return response;
+  }
 
   // Get session info from cookies
   const hasSession = request.cookies.has('sb-auth-token');

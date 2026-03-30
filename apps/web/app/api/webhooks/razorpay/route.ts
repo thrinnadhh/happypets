@@ -15,9 +15,16 @@ function verifyWebhookSignature(body: string, signature: string): boolean {
     .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET!)
     .update(body)
     .digest('hex');
+
+  // Check length first to avoid timingSafeEqual throwing on mismatch
+  if (signature.length !== expectedSignature.length) {
+    return false;
+  }
+
+  // Compare hex-encoded buffers (not UTF-8 byte comparison)
   return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
+    Buffer.from(signature, 'hex'),
+    Buffer.from(expectedSignature, 'hex')
   );
 }
 
@@ -49,7 +56,7 @@ export async function POST(req: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .eq('razorpay_order_id', razorpayOrderId)
-          .select('id, user_id, order_number')
+          .select('*, items:order_items(*)')
           .single();
 
         if (orderError || !order) {
@@ -58,58 +65,38 @@ export async function POST(req: NextRequest) {
         }
 
         // Deduct stock for each order item
-        const { data: orderItems } = await supabase
-          .from('order_items')
-          .select('product_id, variant_id, quantity')
-          .eq('order_id', order.id);
-
-        for (const item of orderItems ?? []) {
-          if (item.variant_id) {
-            await supabase.rpc('decrement_variant_stock', {
-              p_variant_id: item.variant_id,
-              p_quantity: item.quantity,
-            });
-          } else {
-            await supabase.rpc('decrement_product_stock', {
-              p_product_id: item.product_id,
-              p_quantity: item.quantity,
-            });
-          }
+        for (const item of order.items ?? []) {
+          // decrement_product_stock is a custom RPC in Supabase
+          await supabase.rpc('decrement_product_stock', {
+            p_id: item.product_id,
+            p_qty: item.quantity,
+          });
         }
 
-        // Clear user's cart
-        await supabase.from('cart_items').delete().eq('user_id', order.user_id);
-        await redis.del(`cart:${order.user_id}`);
-
-        // Update coupon usage if applicable
-        const { data: couponUsage } = await supabase
-          .from('orders')
-          .select('discount_inr')
-          .eq('id', order.id)
+        // Fetch user profile for email
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', order.user_id)
           .single();
 
-        // Queue email notification (via Supabase Edge Function or external service)
-        await redis.lpush('email:queue', JSON.stringify({
-          type: 'order_confirmed',
-          orderId: order.id,
-          orderNumber: order.order_number,
-          userId: order.user_id,
-        }));
+        if (profile) {
+          // Send email directly
+          const { sendOrderConfirmation } = await import('@/lib/resend');
+          await sendOrderConfirmation(order as any, profile as any);
+        }
 
         // Notify shop admins for each shop involved
-        const { data: shopItems } = await supabase
-          .from('order_items')
-          .select('shop_id')
-          .eq('order_id', order.id);
-
-        const uniqueShopIds = [...new Set(shopItems?.map(i => i.shop_id))];
+        const uniqueShopIds = [...new Set(order.items?.map((i: any) => i.shop_id))];
         for (const shopId of uniqueShopIds) {
-          await redis.lpush('notification:queue', JSON.stringify({
+          // Logic for real-time notification (e.g. pusher or database notification)
+          await supabase.from('notifications').insert({
+            user_id: null, // Broadcast or specific shop admin
             type: 'new_order',
-            shopId,
-            orderId: order.id,
-            orderNumber: order.order_number,
-          }));
+            title: 'New Order Received',
+            message: `Order #${order.order_number} has been placed.`,
+            metadata: { orderId: order.id, shopId }
+          });
         }
 
         break;
@@ -131,39 +118,25 @@ export async function POST(req: NextRequest) {
 
       case 'refund.processed': {
         const refund = event.payload.refund.entity;
-        await supabase
+        
+        // 1. Update order status
+        const { data: order } = await supabase
           .from('orders')
           .update({
             payment_status: 'refunded',
             updated_at: new Date().toISOString(),
           })
-          .eq('razorpay_payment_id', refund.payment_id);
-
-        // Restore stock
-        const { data: order } = await supabase
-          .from('orders')
-          .select('id')
           .eq('razorpay_payment_id', refund.payment_id)
+          .select('id, items:order_items(*)')
           .single();
 
+        // 2. Restore stock
         if (order) {
-          const { data: items } = await supabase
-            .from('order_items')
-            .select('product_id, variant_id, quantity')
-            .eq('order_id', order.id);
-
-          for (const item of items ?? []) {
-            if (item.variant_id) {
-              await supabase.rpc('increment_variant_stock', {
-                p_variant_id: item.variant_id,
-                p_quantity: item.quantity,
-              });
-            } else {
-              await supabase.rpc('increment_product_stock', {
-                p_product_id: item.product_id,
-                p_quantity: item.quantity,
-              });
-            }
+          for (const item of order.items ?? []) {
+            await supabase.rpc('increment_product_stock', {
+              p_id: item.product_id,
+              p_qty: item.quantity,
+            });
           }
         }
 

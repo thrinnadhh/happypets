@@ -6,19 +6,46 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { loginSchema, registerSchema } from '@happypets/shared';
 import type { LoginInput, RegisterInput } from '@happypets/shared';
 import { getLogger } from '@/lib/logger';
+import { rateLimit } from '@/lib/redis';
 
 const logger = getLogger('auth:actions');
 
 /**
- * Login user
+ * Get client IP address from request headers
+ */
+const getClientIp = async (): Promise<string> => {
+  const headersList = await headers();
+  return (
+    headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    headersList.get('x-real-ip') ||
+    'unknown'
+  );
+};
+
+/**
+ * Login user with rate limiting
  */
 export const loginAction = async (input: LoginInput) => {
   try {
     const validatedInput = loginSchema.parse(input);
+
+    // Apply rate limiting: 10 attempts per minute per IP
+    const clientIp = await getClientIp();
+    const rateLimitResult = await rateLimit(clientIp, 10, 60);
+
+    if (!rateLimitResult.allowed) {
+      logger.warn(`Rate limit exceeded for IP ${clientIp}`);
+      return {
+        success: false,
+        error: 'Too many login attempts. Please try again later.',
+      };
+    }
+
     const supabase = createClient();
 
     const { error, data } = await supabase.auth.signInWithPassword({
@@ -57,11 +84,24 @@ export const loginAction = async (input: LoginInput) => {
 };
 
 /**
- * Register new user
+ * Register new user with rate limiting
  */
 export const registerAction = async (input: RegisterInput) => {
   try {
     const validatedInput = registerSchema.parse(input);
+
+    // Apply rate limiting: 5 registration attempts per minute per IP
+    const clientIp = await getClientIp();
+    const rateLimitResult = await rateLimit(clientIp, 5, 60);
+
+    if (!rateLimitResult.allowed) {
+      logger.warn(`Rate limit exceeded for registration from IP ${clientIp}`);
+      return {
+        success: false,
+        error: 'Too many registration attempts. Please try again later.',
+      };
+    }
+
     const supabase = createClient();
 
     // Sign up with Supabase Auth
@@ -78,16 +118,17 @@ export const registerAction = async (input: RegisterInput) => {
 
     if (signUpError) {
       logger.warn(`Registration failed for ${validatedInput.email}: ${signUpError.message}`);
+      // Return generic message to prevent account enumeration (HIGH-3)
       return {
         success: false,
-        error: signUpError.message || 'Registration failed',
+        error: 'Registration failed. Please check your details and try again.',
       };
     }
 
     if (!data.user) {
       return {
         success: false,
-        error: 'Registration failed',
+        error: 'Registration failed. Please check your details and try again.',
       };
     }
 
