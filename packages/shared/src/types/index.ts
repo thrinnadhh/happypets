@@ -77,6 +77,8 @@ export interface Profile {
   user_id: string;
   full_name: string;
   phone: string;
+  email?: string;
+  shop_id?: string;
   role: UserRole;
   status: UserStatus;
   avatar_url?: string;
@@ -186,6 +188,7 @@ export interface OrderItem {
   quantity: number;
   price_at_purchase: number;
   discount_applied?: number;
+  product_snapshot?: { name?: string; [key: string]: unknown };
   created_at: string;
 }
 

@@ -8,7 +8,8 @@
       "Read(//usr/**)",
       "Bash(/usr/local/lib/node_modules/corepack/shims/pnpm --filter web add class-variance-authority)",
       "Bash(/usr/local/lib/node_modules/corepack/shims/pnpm --filter web add @react-pdf/renderer)",
-      "Bash(node_modules/.bin/next build:*)"
+      "Bash(node_modules/.bin/next build:*)",
+      "Bash(grep -r '^export function.*\\({.*}\\)' /Users/trinadh/projects/websites/Happypets/apps/web/app --include=*.tsx)"
     ]
   },
   "enabledPlugins": {
