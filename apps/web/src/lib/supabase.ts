@@ -111,6 +111,14 @@ type SupabaseCartRow = {
   product: SupabaseProductRow | SupabaseProductRow[] | null;
 };
 
+type SupabaseCartBaseRow = {
+  id: string;
+  product_id: string;
+  quantity: number;
+  selected?: boolean | null;
+  created_at?: string | null;
+};
+
 type SupabaseCouponRow = {
   code: string;
   description: string | null;
@@ -343,6 +351,16 @@ function mapRowToCartItem(row: SupabaseCartRow): CartItem {
   };
 }
 
+function mapBaseCartRowToCartItem(row: SupabaseCartBaseRow, productRow: SupabaseProductRow): CartItem {
+  return {
+    id: row.id,
+    productId: row.product_id,
+    product: mapRowToProduct(productRow),
+    quantity: row.quantity,
+    selected: row.selected ?? true,
+  };
+}
+
 function mapRowToOrderItem(row: SupabaseOrderItemRow): OrderItem {
   const product = Array.isArray(row.product) ? row.product[0] : row.product;
   const image = product?.images?.[0] ?? "";
@@ -491,6 +509,84 @@ function isMissingCartEnhancementColumnError(issue: unknown): boolean {
 
   const message = "message" in issue && typeof issue.message === "string" ? issue.message.toLowerCase() : "";
   return message.includes("selected") || isMissingProductEnhancementColumnError(issue);
+}
+
+function isMissingRowError(issue: unknown): boolean {
+  if (!issue || typeof issue !== "object") {
+    return false;
+  }
+
+  const code = "code" in issue && typeof issue.code === "string" ? issue.code : "";
+  const message = "message" in issue && typeof issue.message === "string" ? issue.message.toLowerCase() : "";
+
+  return code === "PGRST116" || message.includes("0 rows") || message.includes("no rows");
+}
+
+async function fetchCartBaseRows(
+  client: SupabaseClient,
+  userId: string,
+  options?: { productId?: string },
+): Promise<SupabaseCartBaseRow[]> {
+  const attempt = async (selectClause: string): Promise<SupabaseCartBaseRow[]> => {
+    let query = client
+      .from("cart_items")
+      .select(selectClause)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (options?.productId) {
+      query = query.eq("product_id", options.productId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []) as SupabaseCartBaseRow[];
+  };
+
+  try {
+    return await attempt("id, product_id, quantity, selected, created_at");
+  } catch (issue) {
+    if (!isMissingCartEnhancementColumnError(issue)) {
+      throw issue;
+    }
+
+    return attempt("id, product_id, quantity, created_at");
+  }
+}
+
+async function fetchProductsByIds(
+  client: SupabaseClient,
+  productIds: string[],
+): Promise<Map<string, SupabaseProductRow>> {
+  const uniqueIds = [...new Set(productIds.filter(Boolean))];
+
+  if (!uniqueIds.length) {
+    return new Map();
+  }
+
+  const attempt = async (selectClause: string): Promise<Map<string, SupabaseProductRow>> => {
+    const { data, error } = await client.from("products").select(selectClause).in("id", uniqueIds);
+
+    if (error) {
+      throw error;
+    }
+
+    return new Map((data ?? []).map((row) => [row.id as string, row as SupabaseProductRow]));
+  };
+
+  try {
+    return await attempt(PRODUCT_SELECT);
+  } catch (issue) {
+    if (!isMissingProductEnhancementColumnError(issue)) {
+      throw issue;
+    }
+
+    return attempt(LEGACY_PRODUCT_SELECT);
+  }
 }
 
 async function loadRazorpayCheckoutScript(): Promise<void> {
@@ -948,14 +1044,64 @@ export async function fetchCartItemsFromSupabase(): Promise<CartItem[]> {
   };
 
   try {
-    return await attempt(CART_SELECT);
+    const items = await attempt(CART_SELECT);
+    console.log("[cart][supabase] fetch success", {
+      userId: authUser.id,
+      strategy: "joined",
+      itemCount: items.length,
+    });
+    return items;
   } catch (issue) {
-    if (!isMissingCartEnhancementColumnError(issue)) {
-      throw issue;
+    console.warn("[cart][supabase] joined cart fetch failed, retrying", {
+      userId: authUser.id,
+      issue,
+    });
+
+    if (isMissingCartEnhancementColumnError(issue)) {
+      try {
+        const items = await attempt(LEGACY_CART_SELECT);
+        console.log("[cart][supabase] fetch success", {
+          userId: authUser.id,
+          strategy: "legacy-joined",
+          itemCount: items.length,
+        });
+        return items;
+      } catch (legacyIssue) {
+        console.warn("[cart][supabase] legacy joined cart fetch failed, using fallback", {
+          userId: authUser.id,
+          issue: legacyIssue,
+        });
+      }
+    }
+  }
+
+  const baseRows = await fetchCartBaseRows(client, authUser.id);
+  const productsById = await fetchProductsByIds(
+    client,
+    baseRows.map((row) => row.product_id),
+  );
+
+  const items = baseRows.flatMap((row) => {
+    const productRow = productsById.get(row.product_id);
+    if (!productRow) {
+      console.warn("[cart][supabase] cart row skipped because product could not be resolved", {
+        userId: authUser.id,
+        cartItemId: row.id,
+        productId: row.product_id,
+      });
+      return [];
     }
 
-    return attempt(LEGACY_CART_SELECT);
-  }
+    return [mapBaseCartRowToCartItem(row, productRow)];
+  });
+
+  console.log("[cart][supabase] fetch success", {
+    userId: authUser.id,
+    strategy: "base-row-fallback",
+    itemCount: items.length,
+  });
+
+  return items;
 }
 
 export async function addCartItemInSupabase(productId: string, quantity: number): Promise<CartItem[]> {
@@ -963,35 +1109,84 @@ export async function addCartItemInSupabase(productId: string, quantity: number)
   const authUser = await getCurrentAuthUser();
 
   if (!authUser) {
-    throw new Error("Sign in to manage your cart.");
+    throw new Error("User not authenticated.");
   }
 
-  const existingItems = await fetchCartItemsFromSupabase();
-  const existing = existingItems.find((item) => item.productId === productId);
+  if (!productId) {
+    throw new Error("Product not found.");
+  }
+
+  const normalizedQuantity = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+
+  try {
+    await fetchProductById(productId);
+  } catch (issue) {
+    console.error("[cart][supabase] product validation failed", {
+      userId: authUser.id,
+      productId,
+      issue,
+    });
+
+    if (isMissingRowError(issue)) {
+      throw new Error("Product not found.");
+    }
+
+    throw issue;
+  }
+
+  console.log("[cart][supabase] add request", {
+    userId: authUser.id,
+    productId,
+    quantity: normalizedQuantity,
+  });
+
+  const existingRows = await fetchCartBaseRows(client, authUser.id, { productId });
+  const existing = existingRows[0];
 
   if (existing) {
     try {
       const { error } = await client
         .from("cart_items")
-        .update({ quantity: existing.quantity + quantity, selected: true })
+        .update({ quantity: existing.quantity + normalizedQuantity, selected: true })
         .eq("id", existing.id);
 
       if (error) {
         throw error;
       }
+
+      console.log("[cart][supabase] updated existing cart row", {
+        userId: authUser.id,
+        cartItemId: existing.id,
+        productId,
+        quantity: existing.quantity + normalizedQuantity,
+      });
     } catch (issue) {
       if (!isMissingCartEnhancementColumnError(issue)) {
+        console.error("[cart][supabase] update existing cart row failed", {
+          userId: authUser.id,
+          cartItemId: existing.id,
+          productId,
+          issue,
+        });
         throw issue;
       }
 
       const { error } = await client
         .from("cart_items")
-        .update({ quantity: existing.quantity + quantity })
+        .update({ quantity: existing.quantity + normalizedQuantity })
         .eq("id", existing.id);
 
       if (error) {
         throw error;
       }
+
+      console.log("[cart][supabase] updated existing cart row", {
+        userId: authUser.id,
+        cartItemId: existing.id,
+        productId,
+        quantity: existing.quantity + normalizedQuantity,
+        strategy: "legacy-update",
+      });
     }
 
     return fetchCartItemsFromSupabase();
@@ -1001,27 +1196,46 @@ export async function addCartItemInSupabase(productId: string, quantity: number)
     const { error } = await client.from("cart_items").insert({
       user_id: authUser.id,
       product_id: productId,
-      quantity,
+      quantity: normalizedQuantity,
       selected: true,
     });
 
     if (error) {
       throw error;
     }
+
+    console.log("[cart][supabase] inserted new cart row", {
+      userId: authUser.id,
+      productId,
+      quantity: normalizedQuantity,
+    });
   } catch (issue) {
     if (!isMissingCartEnhancementColumnError(issue)) {
+      console.error("[cart][supabase] insert cart row failed", {
+        userId: authUser.id,
+        productId,
+        quantity: normalizedQuantity,
+        issue,
+      });
       throw issue;
     }
 
     const { error } = await client.from("cart_items").insert({
       user_id: authUser.id,
       product_id: productId,
-      quantity,
+      quantity: normalizedQuantity,
     });
 
     if (error) {
       throw error;
     }
+
+    console.log("[cart][supabase] inserted new cart row", {
+      userId: authUser.id,
+      productId,
+      quantity: normalizedQuantity,
+      strategy: "legacy-insert",
+    });
   }
 
   return fetchCartItemsFromSupabase();
@@ -1042,6 +1256,11 @@ export async function updateCartItemInSupabase(
     nextPayload.selected = input.selected;
   }
 
+  console.log("[cart][supabase] update request", {
+    cartItemId,
+    input,
+  });
+
   try {
     const { error } = await client.from("cart_items").update(nextPayload).eq("id", cartItemId);
 
@@ -1050,6 +1269,11 @@ export async function updateCartItemInSupabase(
     }
   } catch (issue) {
     if (!isMissingCartEnhancementColumnError(issue)) {
+      console.error("[cart][supabase] update failed", {
+        cartItemId,
+        input,
+        issue,
+      });
       throw issue;
     }
 
@@ -1072,9 +1296,14 @@ export async function updateCartItemInSupabase(
 
 export async function removeCartItemFromSupabase(cartItemId: string): Promise<CartItem[]> {
   const client = requireSupabaseClient();
+  console.log("[cart][supabase] remove request", { cartItemId });
   const { error } = await client.from("cart_items").delete().eq("id", cartItemId);
 
   if (error) {
+    console.error("[cart][supabase] remove failed", {
+      cartItemId,
+      error,
+    });
     throw error;
   }
 

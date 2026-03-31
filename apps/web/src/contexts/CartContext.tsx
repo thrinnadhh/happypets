@@ -98,7 +98,36 @@ export function CartProvider({ children }: { children: React.ReactNode }): JSX.E
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const addToCart = async (productId: string, quantity: number): Promise<void> => {
-    setItems(await addCartItemInSupabase(productId, quantity));
+    console.log("[cart][frontend] addToCart request", {
+      userId: user?.id ?? null,
+      productId,
+      quantity,
+    });
+
+    try {
+      const nextItems = await addCartItemInSupabase(productId, quantity);
+      console.log("[cart][frontend] addToCart response", {
+        userId: user?.id ?? null,
+        productId,
+        quantity,
+        itemCount: nextItems.length,
+        items: nextItems.map((item) => ({
+          id: item.id,
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+      });
+      setItems(nextItems);
+      setError("");
+    } catch (issue) {
+      console.error("[cart][frontend] addToCart failed", {
+        userId: user?.id ?? null,
+        productId,
+        quantity,
+        issue,
+      });
+      throw issue;
+    }
   };
 
   const updateQuantity = async (cartItemId: string, quantity: number): Promise<void> => {

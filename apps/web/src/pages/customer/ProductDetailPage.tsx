@@ -8,6 +8,7 @@ import { ProductCard } from "@/components/products/ProductCard";
 import { FavoriteButton } from "@/components/products/FavoriteButton";
 import { StarIcon } from "@/components/common/Icons";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCatalog } from "@/contexts/CatalogContext";
 import { getCategoryPath, productTagLabels, productTagStyles, sortTags } from "@/data/catalog";
 import { calculateDiscountedPrice, formatInr } from "@/lib/commerce";
@@ -17,6 +18,7 @@ export function ProductDetailPage(): JSX.Element {
   const navigate = useNavigate();
   const { getProductById, getRelatedProducts } = useCatalog();
   const { addToCart, getItemQuantity } = useCart();
+  const { user, token } = useAuth();
   const product = id ? getProductById(id) : undefined;
   const relatedProducts = id ? getRelatedProducts(id) : [];
   const [activeImage, setActiveImage] = useState(product?.gallery?.[0] ?? product?.image ?? "");
@@ -184,11 +186,25 @@ export function ProductDetailPage(): JSX.Element {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => {
                   setCartError("");
+                  const payload = {
+                    productId: product.id,
+                    quantity,
+                    userId: user?.id ?? null,
+                    tokenPresent: Boolean(token),
+                  };
+                  console.log("[cart][frontend] add-to-cart click", payload);
                   void addToCart(product.id, quantity)
-                    .then(() => setCartNotice(`${quantity} item${quantity > 1 ? "s" : ""} added to cart.`))
-                    .catch((issue) =>
-                      setCartError(issue instanceof Error ? issue.message : "Unable to add this product to cart."),
-                    );
+                    .then(() => {
+                      console.log("[cart][frontend] add-to-cart success", payload);
+                      setCartNotice(`${quantity} item${quantity > 1 ? "s" : ""} added to cart.`);
+                    })
+                    .catch((issue) => {
+                      console.error("[cart][frontend] add-to-cart failure", {
+                        ...payload,
+                        issue,
+                      });
+                      setCartError(issue instanceof Error ? issue.message : "Unable to add this product to cart.");
+                    });
                 }}
                 className="primary-button bg-[#2F4F6F] px-7 py-3 text-white"
                 style={{ backgroundImage: "none" }}
