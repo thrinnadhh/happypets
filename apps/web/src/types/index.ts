@@ -16,6 +16,7 @@ export type User = {
 
 export type Product = {
   id: string;
+  shopId?: string;
   name: string;
   category: ProductCategory;
   displaySection: DisplaySection;
@@ -28,11 +29,21 @@ export type Product = {
   quantity: number;
   price: number;
   discount?: number;
+  weight: string;
+  packetCount: number;
+  isSample: boolean;
+  createdAt?: string;
   manufactureDate: string;
   expiryDate: string;
   soldCount: number;
   revenue: number;
   rating: number;
+};
+
+export type Banner = {
+  id: string;
+  imageUrl: string;
+  position: number;
 };
 
 export type AdminRecord = {
@@ -65,6 +76,43 @@ export type SignupResult = {
 };
 
 export type CartItem = {
+  id: string;
   productId: string;
+  product: Product;
   quantity: number;
+  selected: boolean;
+};
+
+export type CouponResult = {
+  code: string;
+  description: string;
+  discountAmount: number;
+};
+
+export type CheckoutDetails = {
+  address: string;
+  mobileNumber: string;
+  deliveryTime: string;
+};
+
+export type OrderItem = {
+  productId: string;
+  name: string;
+  image: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  isSample: boolean;
+};
+
+export type OrderRecord = {
+  id: string;
+  orderNumber: string;
+  items: OrderItem[];
+  totalPrice: number;
+  status: string;
+  address: string;
+  mobileNumber: string;
+  deliveryTime: string;
+  createdAt: string;
 };

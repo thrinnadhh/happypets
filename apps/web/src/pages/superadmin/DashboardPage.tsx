@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { PageTransition } from "@/components/common/PageTransition";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { useCatalog } from "@/contexts/CatalogContext";
+import { formatInr } from "@/lib/commerce";
 
 const links = [
   { to: "/superadmin/dashboard", label: "Dashboard" },
@@ -29,7 +30,7 @@ export function SuperAdminDashboardPage(): JSX.Element {
             </p>
             <div className="mt-8 grid gap-4 md:grid-cols-3">
               {[
-                ["Total revenue", `$${totalRevenue.toLocaleString()}`],
+                ["Total revenue", formatInr(totalRevenue)],
                 ["Products tracked", `${products.length}`],
                 ["Top seller", topSelling[0]?.name ?? "N/A"],
               ].map(([label, value]) => (

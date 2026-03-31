@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const adminLinks = [
   { to: "/admin/dashboard", label: "Dashboard" },
   { to: "/admin/products", label: "Products" },
+  { to: "/admin/banners", label: "Banners" },
 ];
 
 export function AdminDashboardPage(): JSX.Element {

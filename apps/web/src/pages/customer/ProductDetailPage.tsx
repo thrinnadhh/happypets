@@ -10,6 +10,7 @@ import { StarIcon } from "@/components/common/Icons";
 import { useCart } from "@/contexts/CartContext";
 import { useCatalog } from "@/contexts/CatalogContext";
 import { getCategoryPath, productTagLabels, productTagStyles, sortTags } from "@/data/catalog";
+import { calculateDiscountedPrice, formatInr } from "@/lib/commerce";
 
 export function ProductDetailPage(): JSX.Element {
   const { id } = useParams();
@@ -20,10 +21,19 @@ export function ProductDetailPage(): JSX.Element {
   const relatedProducts = id ? getRelatedProducts(id) : [];
   const [activeImage, setActiveImage] = useState(product?.gallery?.[0] ?? product?.image ?? "");
   const [quantity, setQuantity] = useState(1);
+  const [cartNotice, setCartNotice] = useState("");
+  const [cartError, setCartError] = useState("");
 
   useEffect(() => {
     setActiveImage(product?.gallery?.[0] ?? product?.image ?? "");
   }, [product]);
+
+  useEffect(() => {
+    if (!cartNotice) return;
+
+    const timer = window.setTimeout(() => setCartNotice(""), 2200);
+    return () => window.clearTimeout(timer);
+  }, [cartNotice]);
 
   if (!product) {
     return (
@@ -44,9 +54,7 @@ export function ProductDetailPage(): JSX.Element {
     );
   }
 
-  const discountedPrice = product.discount
-    ? product.price - (product.price * product.discount) / 100
-    : product.price;
+  const discountedPrice = calculateDiscountedPrice(product.price, product.discount);
   const gallery = product.gallery?.length ? product.gallery : [product.image];
   const rating = product.rating ?? 4.8;
   const tags = sortTags(product.tags ?? []);
@@ -101,6 +109,11 @@ export function ProductDetailPage(): JSX.Element {
                     ))}
                   </div>
                 ) : null}
+                {product.isSample ? (
+                  <span className="mt-4 inline-flex rounded-full bg-[#17324a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                    Sample product
+                  </span>
+                ) : null}
               </div>
               <FavoriteButton productId={product.id} />
             </div>
@@ -116,10 +129,10 @@ export function ProductDetailPage(): JSX.Element {
 
             <div className="rounded-[26px] border border-[#ebe0ca] bg-[#fcf9f3] p-5">
               <div className="flex flex-wrap items-end gap-3">
-                <p className="text-4xl font-semibold text-ink">${discountedPrice.toFixed(2)}</p>
+                <p className="text-4xl font-semibold text-ink">{formatInr(discountedPrice)}</p>
                 {product.discount ? (
                   <>
-                    <p className="text-lg text-slate-400 line-through">${product.price.toFixed(2)}</p>
+                    <p className="text-lg text-slate-400 line-through">{formatInr(product.price)}</p>
                     <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">
                       {product.discount}% off
                     </span>
@@ -131,7 +144,15 @@ export function ProductDetailPage(): JSX.Element {
               </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="subtle-panel p-4">
+                <p className="text-sm uppercase tracking-[0.16em] text-slate-500">Weight</p>
+                <p className="mt-2 text-base font-semibold text-ink">{product.weight || "Not set"}</p>
+              </div>
+              <div className="subtle-panel p-4">
+                <p className="text-sm uppercase tracking-[0.16em] text-slate-500">Packet Count</p>
+                <p className="mt-2 text-base font-semibold text-ink">{product.packetCount}</p>
+              </div>
               <div className="subtle-panel p-4">
                 <p className="text-sm uppercase tracking-[0.16em] text-slate-500">Manufacture Date</p>
                 <p className="mt-2 text-base font-semibold text-ink">{product.manufactureDate}</p>
@@ -161,7 +182,14 @@ export function ProductDetailPage(): JSX.Element {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => addToCart(product.id, quantity)}
+                onClick={() => {
+                  setCartError("");
+                  void addToCart(product.id, quantity)
+                    .then(() => setCartNotice(`${quantity} item${quantity > 1 ? "s" : ""} added to cart.`))
+                    .catch((issue) =>
+                      setCartError(issue instanceof Error ? issue.message : "Unable to add this product to cart."),
+                    );
+                }}
                 className="primary-button bg-[#2F4F6F] px-7 py-3 text-white"
                 style={{ backgroundImage: "none" }}
               >
@@ -171,6 +199,8 @@ export function ProductDetailPage(): JSX.Element {
                 In cart: {getItemQuantity(product.id)}
               </span>
             </div>
+            {cartNotice ? <p className="text-sm text-emerald-600">{cartNotice}</p> : null}
+            {cartError ? <p className="text-sm text-rose-500">{cartError}</p> : null}
           </div>
         </section>
 

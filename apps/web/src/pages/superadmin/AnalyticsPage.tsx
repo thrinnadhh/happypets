@@ -3,6 +3,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { useCatalog } from "@/contexts/CatalogContext";
 import { productCategories } from "@/data/catalog";
+import { formatInr } from "@/lib/commerce";
 
 const links = [
   { to: "/superadmin/dashboard", label: "Dashboard" },
@@ -35,7 +36,7 @@ export function SuperAdminAnalyticsPage(): JSX.Element {
             {[
               ["Top selling products", `${bySales.length}`],
               ["Highest revenue products", `${byRevenue.length}`],
-              ["Total revenue", `$${totalRevenue.toLocaleString()}`],
+              ["Total revenue", formatInr(totalRevenue)],
             ].map(([label, value]) => (
               <motion.div key={label} whileHover={{ y: -5 }} className="card p-6">
                 <p className="text-sm uppercase tracking-[0.16em] text-slate-500">{label}</p>
@@ -66,7 +67,7 @@ export function SuperAdminAnalyticsPage(): JSX.Element {
                   <div key={product.id} className="rounded-[22px] bg-[#faf5ea] px-4 py-4">
                     <div className="flex items-center justify-between gap-4">
                       <span className="font-semibold text-ink">{product.name}</span>
-                      <span className="text-sm text-slate-500">${product.revenue.toLocaleString()}</span>
+                      <span className="text-sm text-slate-500">{formatInr(product.revenue)}</span>
                     </div>
                   </div>
                 ))}
@@ -89,7 +90,7 @@ export function SuperAdminAnalyticsPage(): JSX.Element {
                       className="h-full rounded-full bg-[#2F4F6F]"
                     />
                   </div>
-                  <p className="mt-3 text-2xl font-semibold text-ink">${item.revenue.toLocaleString()}</p>
+                  <p className="mt-3 text-2xl font-semibold text-ink">{formatInr(item.revenue)}</p>
                 </div>
               ))}
             </div>

@@ -54,6 +54,21 @@ export function CustomerSidebar({
                 <p className="mt-2 text-base font-semibold text-ink">Top picks and featured category rails</p>
               </NavLink>
 
+              {[
+                ["/cart", "Cart", "Review selected products, samples, and checkout details."],
+                ["/orders", "Orders", "Track previous purchases, totals, and delivery instructions."],
+              ].map(([to, label, copy]) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={onClose}
+                  className="block rounded-[24px] border border-[#e8dcc8] bg-white px-5 py-4 transition hover:border-brand-300 hover:shadow-soft"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">{label}</p>
+                  <p className="mt-2 text-base font-semibold text-ink">{copy}</p>
+                </NavLink>
+              ))}
+
               {productCategories.map((category) => (
                 <NavLink
                   key={category}

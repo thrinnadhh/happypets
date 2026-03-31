@@ -3,12 +3,11 @@ import { Link } from "react-router-dom";
 import { FavoriteButton } from "@/components/products/FavoriteButton";
 import { StarIcon } from "@/components/common/Icons";
 import { productTagLabels, productTagStyles, sortTags } from "@/data/catalog";
+import { calculateDiscountedPrice, formatInr } from "@/lib/commerce";
 import { Product } from "@/types";
 
 export function ProductCard({ product }: { product: Product }): JSX.Element {
-  const discountedPrice = product.discount
-    ? product.price - (product.price * product.discount) / 100
-    : product.price;
+  const discountedPrice = calculateDiscountedPrice(product.price, product.discount);
   const rating = product.rating ?? 4.8;
   const tags = sortTags(product.tags ?? []);
   const isRecommended = tags.includes("recommended");
@@ -33,6 +32,11 @@ export function ProductCard({ product }: { product: Product }): JSX.Element {
           {product.discount ? (
             <span className="absolute left-4 top-4 rounded-full bg-[#D4AF37] px-3 py-1 text-xs font-semibold text-[#17324a]">
               {product.discount}% OFF
+            </span>
+          ) : null}
+          {product.isSample ? (
+            <span className="absolute left-4 top-16 rounded-full bg-[#17324a] px-3 py-1 text-xs font-semibold text-white">
+              Sample
             </span>
           ) : null}
           {tags.length ? (
@@ -76,11 +80,13 @@ export function ProductCard({ product }: { product: Product }): JSX.Element {
 
           <div className="flex items-end justify-between gap-4 border-t border-[#efe3d1] pt-4">
             <div>
-              <p className="text-2xl font-semibold text-ink">${discountedPrice.toFixed(2)}</p>
+              <p className="text-2xl font-semibold text-ink">{formatInr(discountedPrice)}</p>
               {product.discount ? (
-                <p className="text-sm text-slate-400 line-through">${product.price.toFixed(2)}</p>
+                <p className="text-sm text-slate-400 line-through">{formatInr(product.price)}</p>
               ) : (
-                <p className="text-sm text-slate-400">Premium daily price</p>
+                <p className="text-sm text-slate-400">
+                  {product.weight} • {product.packetCount} pack
+                </p>
               )}
             </div>
             <span className="rounded-full bg-[#17324a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white">

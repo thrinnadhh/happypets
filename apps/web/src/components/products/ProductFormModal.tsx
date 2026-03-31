@@ -27,6 +27,9 @@ const emptyForm: ProductFormInput = {
   quantity: 0,
   price: 0,
   discount: 0,
+  weight: "",
+  packetCount: 1,
+  isSample: false,
   manufactureDate: "",
   expiryDate: "",
   rating: 4.8,
@@ -54,7 +57,7 @@ export function ProductFormModal({
 
   useEffect(() => {
     if (product) {
-      const { id, soldCount, revenue, ...rest } = product;
+      const { id, soldCount, revenue, shopId, createdAt, ...rest } = product;
       setForm(rest);
       setPreview(rest.image);
       return;
@@ -354,6 +357,54 @@ export function ProductFormModal({
                   className="input"
                   required
                 />
+                <p className="text-xs text-slate-500">Enter the selling price in INR.</p>
+              </label>
+
+              <label className="field">
+                <span>Weight</span>
+                <input
+                  value={form.weight}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, weight: event.target.value }))
+                  }
+                  className="input"
+                  placeholder="1kg"
+                  required
+                />
+              </label>
+
+              <label className="field">
+                <span>Packet Count</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.packetCount}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      packetCount: Math.max(1, Number(event.target.value) || 1),
+                    }))
+                  }
+                  className="input"
+                  required
+                />
+              </label>
+
+              <label className="field md:col-span-2">
+                <span>Product Flags</span>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, isSample: !current.isSample }))}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      form.isSample
+                        ? "border-brand-300 bg-brand-100 text-brand-700"
+                        : "border-[#e7d9c3] bg-white text-slate-500"
+                    }`}
+                  >
+                    {form.isSample ? "Sample Enabled" : "Mark As Sample"}
+                  </button>
+                </div>
               </label>
 
               <label className="field">

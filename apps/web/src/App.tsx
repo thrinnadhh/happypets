@@ -4,10 +4,13 @@ import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 import { AppointmentsPage } from "@/pages/customer/AppointmentsPage";
 import { ContactPage } from "@/pages/customer/ContactPage";
 import { CategoryPage } from "@/pages/customer/CategoryPage";
+import { CartPage } from "@/pages/customer/CartPage";
 import { FavoritesPage } from "@/pages/customer/FavoritesPage";
 import { CustomerHomePage } from "@/pages/customer/HomePage";
+import { OrdersPage } from "@/pages/customer/OrdersPage";
 import { ProductDetailPage } from "@/pages/customer/ProductDetailPage";
 import { SupportPage } from "@/pages/customer/SupportPage";
+import { AdminBannersPage } from "@/pages/admin/BannersPage";
 import { AdminDashboardPage } from "@/pages/admin/DashboardPage";
 import { AdminProductsPage } from "@/pages/admin/ProductsPage";
 import { LoginPage } from "@/pages/LoginPage";
@@ -46,6 +49,22 @@ export default function App(): JSX.Element {
           element={
             <ProtectedRoute allowedRoles={["customer"]}>
               <FavoritesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cart"
+          element={
+            <ProtectedRoute allowedRoles={["customer"]}>
+              <CartPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute allowedRoles={["customer"]}>
+              <OrdersPage />
             </ProtectedRoute>
           }
         />
@@ -95,6 +114,14 @@ export default function App(): JSX.Element {
           element={
             <ProtectedRoute allowedRoles={["admin"]} requireApproved>
               <AdminProductsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/banners"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]} requireApproved>
+              <AdminBannersPage />
             </ProtectedRoute>
           }
         />

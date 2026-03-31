@@ -38,6 +38,9 @@ function normalizeProduct(product: Product): Product {
         : DEFAULT_PRODUCT_POSITION,
     tags: sortTags(product.tags ?? []),
     rating: typeof product.rating === "number" ? product.rating : 4.8,
+    weight: product.weight ?? "",
+    packetCount: typeof product.packetCount === "number" ? product.packetCount : 1,
+    isSample: Boolean(product.isSample),
     gallery:
       product.gallery?.length
         ? product.gallery

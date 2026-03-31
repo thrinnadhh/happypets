@@ -9,11 +9,13 @@ import { DataTable } from "@/components/tables/DataTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCatalog } from "@/contexts/CatalogContext";
 import { displaySectionLabels, productTagLabels, sortProductsByPosition } from "@/data/catalog";
+import { formatInr } from "@/lib/commerce";
 import { Product } from "@/types";
 
 const adminLinks = [
   { to: "/admin/dashboard", label: "Dashboard" },
   { to: "/admin/products", label: "Products" },
+  { to: "/admin/banners", label: "Banners" },
 ];
 
 export function AdminProductsPage(): JSX.Element {
@@ -25,6 +27,7 @@ export function AdminProductsPage(): JSX.Element {
   const lowStockCount = products.filter((product) => product.quantity < 20).length;
   const homeCount = products.filter((product) => product.displaySection === "Home").length;
   const taggedCount = products.filter((product) => product.tags?.length).length;
+  const sampleCount = products.filter((product) => product.isSample).length;
   const orderedProducts = sortProductsByPosition(products).sort((left, right) => {
     if (left.displaySection !== right.displaySection) {
       return left.displaySection.localeCompare(right.displaySection);
@@ -77,6 +80,7 @@ export function AdminProductsPage(): JSX.Element {
                     ["Tagged products", `${taggedCount}`],
                     ["Discounted SKUs", `${discountedCount}`],
                     ["Low stock", `${lowStockCount}`],
+                    ["Samples", `${sampleCount}`],
                   ].map(([label, value]) => (
                     <div key={label} className="stat-panel">
                       <p className="text-sm uppercase tracking-[0.16em] text-slate-500">{label}</p>
@@ -132,7 +136,17 @@ export function AdminProductsPage(): JSX.Element {
                     {
                       key: "price",
                       title: "Price",
-                      render: (product) => `$${product.price.toFixed(2)}`,
+                      render: (product) => formatInr(product.price),
+                    },
+                    {
+                      key: "weight",
+                      title: "Pack",
+                      render: (product) => `${product.weight} • ${product.packetCount}`,
+                    },
+                    {
+                      key: "sample",
+                      title: "Sample",
+                      render: (product) => (product.isSample ? "Yes" : "No"),
                     },
                     {
                       key: "actions",

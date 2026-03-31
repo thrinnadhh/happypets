@@ -9,6 +9,8 @@ import { CustomerSidebar } from "@/components/layout/CustomerSidebar";
 
 const links = [
   { to: "/customer/home", label: "Home" },
+  { to: "/cart", label: "Cart" },
+  { to: "/orders", label: "Orders" },
   { to: "/favorites", label: "Favorites" },
   { to: "/customer/support", label: "Support" },
 ];
@@ -140,13 +142,23 @@ function FavoritesButton({ count }: { count: number }): JSX.Element {
 
 function CartButton({ count }: { count: number }): JSX.Element {
   return (
-    <div className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e8dfd1] bg-white/90 text-slate-500">
+    <NavLink
+      to="/cart"
+      className={({ isActive }) =>
+        `relative inline-flex h-11 w-11 items-center justify-center rounded-full border transition ${
+          isActive
+            ? "border-brand-300 bg-brand-100 text-brand-700"
+            : "border-[#e8dfd1] bg-white/90 text-slate-500 hover:border-brand-300 hover:text-brand-700"
+        }`
+      }
+      aria-label="Cart"
+    >
       <CartIcon />
       {count ? (
         <span className="absolute -right-1 -top-1 rounded-full bg-[#2F4F6F] px-1.5 py-0.5 text-[10px] font-semibold text-white">
           {count}
         </span>
       ) : null}
-    </div>
+    </NavLink>
   );
 }
