@@ -111,6 +111,7 @@ export type OrderRecord = {
   items: OrderItem[];
   totalPrice: number;
   status: string;
+  paymentStatus: "pending" | "paid" | "failed" | "refunded";
   address: string;
   mobileNumber: string;
   deliveryTime: string;

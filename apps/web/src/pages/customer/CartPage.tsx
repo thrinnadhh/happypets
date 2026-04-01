@@ -8,6 +8,22 @@ import { Navbar } from "@/components/layout/Navbar";
 import { useCart } from "@/contexts/CartContext";
 import { calculateDiscountedPrice, formatInr } from "@/lib/commerce";
 
+function mapCheckoutIssue(issue: unknown): { error: string; notice: string } {
+  const message = issue instanceof Error ? issue.message : "Unable to complete payment.";
+
+  if (message.toLowerCase().includes("authorized but not captured")) {
+    return {
+      error: "",
+      notice: "Payment pending. Your payment was authorized, but it has not been captured yet.",
+    };
+  }
+
+  return {
+    error: message,
+    notice: "",
+  };
+}
+
 export function CartPage(): JSX.Element {
   const navigate = useNavigate();
   const {
@@ -31,6 +47,7 @@ export function CartPage(): JSX.Element {
   const [deliveryTime, setDeliveryTime] = useState("");
   const [couponError, setCouponError] = useState("");
   const [checkoutError, setCheckoutError] = useState("");
+  const [checkoutNotice, setCheckoutNotice] = useState("");
   const [cartActionError, setCartActionError] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
@@ -55,12 +72,15 @@ export function CartPage(): JSX.Element {
     event.preventDefault();
     setPlacingOrder(true);
     setCheckoutError("");
+    setCheckoutNotice("");
 
     try {
       await placeOrder({ address, mobileNumber, deliveryTime });
-      navigate("/orders");
+      navigate("/customer/home");
     } catch (issue) {
-      setCheckoutError(issue instanceof Error ? issue.message : "Unable to complete payment.");
+      const result = mapCheckoutIssue(issue);
+      setCheckoutError(result.error);
+      setCheckoutNotice(result.notice);
     } finally {
       setPlacingOrder(false);
     }
@@ -265,32 +285,61 @@ export function CartPage(): JSX.Element {
               <section className="card p-6">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand-700">Checkout details</p>
                 <form onSubmit={handlePlaceOrder} className="mt-4 space-y-4">
-                  <textarea
-                    value={address}
-                    onChange={(event) => setAddress(event.target.value)}
-                    className="input min-h-[120px]"
-                    placeholder="Delivery address"
-                    required
-                  />
-                  <input
-                    value={mobileNumber}
-                    onChange={(event) => setMobileNumber(event.target.value)}
-                    className="input"
-                    placeholder="Mobile number"
-                    required
-                  />
-                  <input
-                    value={deliveryTime}
-                    onChange={(event) => setDeliveryTime(event.target.value)}
-                    className="input"
-                    placeholder="Preferred delivery time"
-                    required
-                  />
+                  <div className="rounded-[26px] border border-[#eadfce] bg-[#fcfaf6] p-4">
+                    <p className="text-sm font-medium text-ink">Delivery information</p>
+                    <p className="mt-1 text-sm text-slate-500">Add the essentials so the order can be placed without delays.</p>
+                  </div>
+
+                  <label className="field">
+                    <span>Delivery address</span>
+                    <textarea
+                      value={address}
+                      onChange={(event) => setAddress(event.target.value)}
+                      className="input min-h-[120px]"
+                      placeholder="House / flat, street, landmark"
+                      required
+                    />
+                  </label>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="field">
+                      <span>Mobile number</span>
+                      <input
+                        value={mobileNumber}
+                        onChange={(event) => setMobileNumber(event.target.value)}
+                        className="input"
+                        placeholder="10-digit phone number"
+                        required
+                      />
+                    </label>
+
+                    <label className="field">
+                      <span>Preferred date & time</span>
+                      <input
+                        value={deliveryTime}
+                        onChange={(event) => setDeliveryTime(event.target.value)}
+                        className="input"
+                        type="datetime-local"
+                        required
+                      />
+                    </label>
+                  </div>
+
                   {error ? <p className="text-sm text-rose-500">{error}</p> : null}
+                  {checkoutNotice ? <p className="text-sm text-amber-700">{checkoutNotice}</p> : null}
                   {checkoutError ? <p className="text-sm text-rose-500">{checkoutError}</p> : null}
-                  <button disabled={placingOrder || !selectedCount} className="primary-button w-full justify-center">
-                    {placingOrder ? "Opening Razorpay..." : "Pay with Razorpay"}
-                  </button>
+                  <div className="rounded-[24px] border border-[#eadfce] bg-white/70 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-ink">Amount payable</p>
+                        <p className="mt-1 text-sm text-slate-500">Selected items only</p>
+                      </div>
+                      <p className="text-2xl font-semibold text-ink">{formatInr(total)}</p>
+                    </div>
+                    <button disabled={placingOrder || !selectedCount} className="primary-button mt-4 w-full justify-center">
+                      {placingOrder ? "Opening Razorpay..." : "Pay with Razorpay"}
+                    </button>
+                  </div>
                 </form>
               </section>
             </aside>

@@ -7,8 +7,6 @@ import { Navbar } from "@/components/layout/Navbar";
 import { ProductCard } from "@/components/products/ProductCard";
 import { useCatalog } from "@/contexts/CatalogContext";
 import {
-  categoryCopy,
-  displaySectionLabels,
   getCategoryPath,
   productCategories,
   sortProductsByPosition,
@@ -23,7 +21,7 @@ function ProductRail({
   cta,
 }: {
   title: string;
-  description: string;
+  description?: string;
   products: Product[];
   cta?: JSX.Element;
 }): JSX.Element {
@@ -37,7 +35,7 @@ function ProductRail({
       <div className="flex flex-col gap-4 border-b border-[#eee2cf] pb-5 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="font-heading text-4xl font-semibold text-ink">{title}</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{description}</p>
+          {description ? <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{description}</p> : null}
         </div>
         {cta}
       </div>
@@ -68,8 +66,7 @@ function CategoryRail({
 }): JSX.Element {
   return (
     <ProductRail
-      title={displaySectionLabels[category]}
-      description={categoryCopy[category]}
+      title={category}
       products={products}
       cta={
         <Link to={getCategoryPath(category)} className="soft-button">
@@ -110,15 +107,9 @@ function BannerSlider({ banners }: { banners: Banner[] }): JSX.Element {
       <section className="relative overflow-hidden rounded-[34px] bg-[#17324a] p-8 text-white shadow-[0_28px_60px_rgba(23,50,74,0.28)] md:p-10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.28),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.05),transparent_46%)]" />
         <div className="relative">
-          <span className="inline-flex rounded-full border border-white/18 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#f4df9d]">
-            HappyPets storefront
-          </span>
           <h1 className="mt-5 max-w-3xl font-heading text-5xl font-semibold tracking-[-0.04em] md:text-6xl">
             Premium pet nutrition, samples, and seasonal promotions in one storefront.
           </h1>
-          <p className="mt-5 max-w-2xl text-sm leading-8 text-white/78">
-            Add up to ten banners from the admin banner tab to turn this hero into a rotating campaign slider.
-          </p>
         </div>
       </section>
     );
@@ -153,15 +144,9 @@ function BannerSlider({ banners }: { banners: Banner[] }): JSX.Element {
       </AnimatePresence>
       <div className="absolute inset-x-0 bottom-0 z-20 p-6 md:p-8">
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#f4df9d]">
-            Homepage banner {activeBanner.position}
-          </p>
-          <h1 className="mt-3 font-heading text-4xl font-semibold text-white md:text-5xl">
+          <h1 className="font-heading text-4xl font-semibold text-white md:text-5xl">
             Fresh launches, trending packs, and curated essentials.
           </h1>
-          <p className="mt-3 text-sm leading-7 text-white/78">
-            Rotate brand campaigns, festival offers, and hero visuals directly from the admin workspace.
-          </p>
         </div>
         {banners.length > 1 ? (
           <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
@@ -267,7 +252,7 @@ export function CustomerHomePage(): JSX.Element {
           <>
             <ProductRail
               title="Trending Products"
-              description="Products carrying the trending tag are surfaced here first for the homepage audience."
+              description="Curated picks from the current catalog."
               products={trendingProducts}
               cta={
                 <Link to="/favorites" className="soft-button">
@@ -278,7 +263,7 @@ export function CustomerHomePage(): JSX.Element {
 
             <ProductRail
               title="New Arrivals"
-              description="The latest products added by admins show up here automatically, making fresh launches easy to spot."
+              description="Newly added products appear here automatically."
               products={newArrivals}
             />
 

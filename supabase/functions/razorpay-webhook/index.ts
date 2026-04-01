@@ -55,12 +55,24 @@ serve(async (request) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     if (paymentEntity?.id) {
-      if (event === "payment.captured" || event === "payment.authorized") {
+      if (event === "payment.captured") {
         await adminClient
           .from("orders")
           .update({
             payment_status: "paid",
             status: "confirmed",
+            razorpay_payment_id: paymentEntity.id,
+            razorpay_order_id: paymentEntity.order_id,
+          })
+          .eq("razorpay_order_id", paymentEntity.order_id);
+      }
+
+      if (event === "payment.authorized") {
+        await adminClient
+          .from("orders")
+          .update({
+            payment_status: "pending",
+            status: "pending",
             razorpay_payment_id: paymentEntity.id,
             razorpay_order_id: paymentEntity.order_id,
           })

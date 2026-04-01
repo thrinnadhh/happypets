@@ -21,14 +21,12 @@ export function Sidebar({
       className="flex h-full flex-col gap-6 rounded-[30px] p-6 text-white shadow-card"
       style={{ background: "linear-gradient(180deg, #2F4F6F 0%, #243A52 100%)" }}
     >
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="inline-flex rounded-full bg-[#f4e5be] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#85631b]">
           {subtitle}
         </div>
         <h1 className="font-heading text-3xl font-semibold">{title}</h1>
-        <p className="text-sm leading-7 text-slate-300">
-          Signed in as {user?.name}. Role-based permissions are enforced on every route.
-        </p>
+        <p className="text-sm font-medium text-slate-200">{user?.name}</p>
       </div>
 
       <nav className="space-y-2">
@@ -50,12 +48,12 @@ export function Sidebar({
       </nav>
 
       <div className="mt-auto rounded-[24px] border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-        <p className="text-sm font-medium">Session status</p>
-        <p className="mt-2 text-sm text-slate-300">
-          {user?.role === "admin" && !user.approved
-            ? "Pending Approval"
-            : "Active session"}
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium">Status</p>
+          <p className="text-sm text-slate-200">
+            {user?.role === "admin" && !user.approved ? "Pending Approval" : "Active"}
+          </p>
+        </div>
         <button
           onClick={() => {
             logout();

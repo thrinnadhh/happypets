@@ -48,6 +48,49 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function describeIssue(issue: unknown, fallback: string): string {
+  if (issue instanceof Error && issue.message) {
+    return issue.message;
+  }
+
+  if (issue && typeof issue === "object") {
+    const candidate = issue as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof candidate.message === "string" ? candidate.message : "",
+      typeof candidate.details === "string" ? candidate.details : "",
+      typeof candidate.hint === "string" ? candidate.hint : "",
+      typeof candidate.code === "string" ? `Code: ${candidate.code}` : "",
+    ].filter(Boolean);
+
+    if (parts.length) {
+      return parts.join(" | ");
+    }
+
+    try {
+      return JSON.stringify(issue);
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+}
+
+function isMissingProductEnhancementColumnError(issue: unknown): boolean {
+  if (!issue || typeof issue !== "object") {
+    return false;
+  }
+
+  const message = "message" in issue && typeof issue.message === "string" ? issue.message.toLowerCase() : "";
+  return message.includes("is_sample");
+}
+
 function calculateDiscountedPrice(price: number, discount?: number | null): number {
   if (!discount) return price;
   return Math.max(price - (price * discount) / 100, 0);
@@ -116,14 +159,93 @@ async function fetchSelectedCart(adminClient: ReturnType<typeof createClient>, u
     );
     return rows.filter((row) => row.selected ?? true);
   } catch (issue) {
-    const message = issue instanceof Error ? issue.message.toLowerCase() : "";
-    if (!message.includes("selected")) {
+    if (!isMissingProductEnhancementColumnError(issue)) {
+      const message = issue instanceof Error ? issue.message.toLowerCase() : "";
+      if (!message.includes("selected")) {
+        throw issue;
+      }
+    }
+
+    try {
+      const rows = await attempt(
+        "id, product_id, quantity, selected, product:products!cart_items_product_id_fkey(name, images, price_inr, discount, shop_id)",
+      );
+      return rows.filter((row) => row.selected ?? true);
+    } catch (legacyIssue) {
+      const message = legacyIssue instanceof Error ? legacyIssue.message.toLowerCase() : "";
+      if (!message.includes("selected")) {
+        throw legacyIssue;
+      }
+
+      return attempt(
+        "id, product_id, quantity, product:products!cart_items_product_id_fkey(name, images, price_inr, discount, shop_id)",
+      );
+    }
+  }
+}
+
+async function fetchOrderWithItems(
+  adminClient: ReturnType<typeof createClient>,
+  orderId: string,
+): Promise<unknown> {
+  const attempt = async (selectClause: string) => {
+    const { data, error } = await adminClient
+      .from("orders")
+      .select(selectClause)
+      .eq("id", orderId)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  };
+
+  try {
+    return await attempt(`
+      id,
+      order_number,
+      status,
+      payment_status,
+      total_inr,
+      delivery_address,
+      mobile_number,
+      delivery_time,
+      created_at,
+      items:order_items(
+        product_id,
+        product_name,
+        quantity,
+        unit_price_inr,
+        total_inr,
+        product:products(images, is_sample)
+      )
+    `);
+  } catch (issue) {
+    if (!isMissingProductEnhancementColumnError(issue)) {
       throw issue;
     }
 
-    return attempt(
-      "id, product_id, quantity, product:products!cart_items_product_id_fkey(name, images, price_inr, discount, shop_id, is_sample)",
-    );
+    return attempt(`
+      id,
+      order_number,
+      status,
+      payment_status,
+      total_inr,
+      delivery_address,
+      mobile_number,
+      delivery_time,
+      created_at,
+      items:order_items(
+        product_id,
+        product_name,
+        quantity,
+        unit_price_inr,
+        total_inr,
+        product:products(images)
+      )
+    `);
   }
 }
 
@@ -227,32 +349,7 @@ serve(async (request) => {
       .maybeSingle();
 
     if (existingOrder) {
-      const { data: existingOrderWithItems, error: existingOrderError } = await adminClient
-        .from("orders")
-        .select(`
-          id,
-          order_number,
-          status,
-          total_inr,
-          delivery_address,
-          mobile_number,
-          delivery_time,
-          created_at,
-          items:order_items(
-            product_id,
-            product_name,
-            quantity,
-            unit_price_inr,
-            total_inr,
-            product:products(images, is_sample)
-          )
-        `)
-        .eq("id", existingOrder.id)
-        .single();
-
-      if (existingOrderError) {
-        throw existingOrderError;
-      }
+      const existingOrderWithItems = await fetchOrderWithItems(adminClient, existingOrder.id);
 
       return jsonResponse({ order: existingOrderWithItems });
     }
@@ -274,7 +371,11 @@ serve(async (request) => {
       throw new Error("Payment order mismatch.");
     }
 
-    if (!["captured", "authorized"].includes(payment.status)) {
+    if (payment.status !== "captured") {
+      if (payment.status === "authorized") {
+        throw new Error("Payment is authorized but not captured yet.");
+      }
+
       throw new Error(`Payment status is ${payment.status}, not completed.`);
     }
 
@@ -415,38 +516,13 @@ serve(async (request) => {
       .delete()
       .in("id", cartRows.map((row) => row.id));
 
-    const { data: finalOrder, error: finalOrderError } = await adminClient
-      .from("orders")
-      .select(`
-        id,
-        order_number,
-        status,
-        total_inr,
-        delivery_address,
-        mobile_number,
-        delivery_time,
-        created_at,
-        items:order_items(
-          product_id,
-          product_name,
-          quantity,
-          unit_price_inr,
-          total_inr,
-          product:products(images, is_sample)
-        )
-      `)
-      .eq("id", order.id)
-      .single();
-
-    if (finalOrderError) {
-      throw finalOrderError;
-    }
+    const finalOrder = await fetchOrderWithItems(adminClient, order.id);
 
     return jsonResponse({ order: finalOrder });
   } catch (issue) {
     return jsonResponse(
       {
-        error: issue instanceof Error ? issue.message : "Unable to verify Razorpay payment.",
+        error: describeIssue(issue, "Unable to verify Razorpay payment."),
       },
       400,
     );

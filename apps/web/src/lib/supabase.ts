@@ -149,6 +149,7 @@ type SupabaseOrderRow = {
   id: string;
   order_number: string;
   status: string;
+  payment_status: OrderRecord["paymentStatus"];
   total_inr: number;
   delivery_address: string | null;
   mobile_number: string | null;
@@ -246,6 +247,7 @@ const ORDER_SELECT = `
   id,
   order_number,
   status,
+  payment_status,
   total_inr,
   delivery_address,
   mobile_number,
@@ -258,6 +260,26 @@ const ORDER_SELECT = `
     unit_price_inr,
     total_inr,
     product:products(images, is_sample)
+  )
+`;
+
+const LEGACY_ORDER_SELECT = `
+  id,
+  order_number,
+  status,
+  payment_status,
+  total_inr,
+  delivery_address,
+  mobile_number,
+  delivery_time,
+  created_at,
+  items:order_items(
+    product_id,
+    product_name,
+    quantity,
+    unit_price_inr,
+    total_inr,
+    product:products(images)
   )
 `;
 
@@ -277,6 +299,43 @@ function requireRazorpayKeyId(): string {
   }
 
   return razorpayKeyId;
+}
+
+async function extractFunctionErrorMessage(issue: unknown, fallback: string): Promise<string> {
+  const defaultMessage = issue instanceof Error && issue.message ? issue.message : fallback;
+
+  if (!issue || typeof issue !== "object" || !("context" in issue)) {
+    return defaultMessage;
+  }
+
+  const response = (issue as { context?: unknown }).context;
+  if (!(response instanceof Response)) {
+    return defaultMessage;
+  }
+
+  try {
+    const clone = response.clone();
+    const contentType = clone.headers.get("content-type") ?? "";
+
+    if (contentType.includes("application/json")) {
+      const payload = await clone.json() as { error?: string; message?: string };
+      return payload.error ?? payload.message ?? defaultMessage;
+    }
+
+    const text = (await clone.text()).trim();
+    if (!text) {
+      return defaultMessage;
+    }
+
+    try {
+      const payload = JSON.parse(text) as { error?: string; message?: string };
+      return payload.error ?? payload.message ?? defaultMessage;
+    } catch {
+      return text;
+    }
+  } catch {
+    return defaultMessage;
+  }
 }
 
 function deriveNameFromEmail(email: string): string {
@@ -395,6 +454,7 @@ function mapRowToOrder(row: SupabaseOrderRow): OrderRecord {
     items: (row.items ?? []).map(mapRowToOrderItem),
     totalPrice: Number(row.total_inr),
     status: row.status,
+    paymentStatus: row.payment_status,
     address: row.delivery_address ?? "",
     mobileNumber: row.mobile_number ?? "",
     deliveryTime: row.delivery_time ?? "",
@@ -1578,7 +1638,7 @@ export async function placeOrderInSupabase(
   );
 
   if (createError) {
-    throw createError;
+    throw new Error(await extractFunctionErrorMessage(createError, "Unable to create the Razorpay checkout session."));
   }
 
   const checkoutSession = createData;
@@ -1631,7 +1691,7 @@ export async function placeOrderInSupabase(
           );
 
           if (error) {
-            throw error;
+            throw new Error(await extractFunctionErrorMessage(error, "Unable to verify payment."));
           }
 
           if (!data?.order) {
@@ -1661,14 +1721,36 @@ export async function fetchOrdersFromSupabase(): Promise<OrderRecord[]> {
     return [];
   }
 
-  const { data, error } = await client
-    .from("orders")
-    .select(ORDER_SELECT)
-    .eq("user_id", authUser.id)
-    .order("created_at", { ascending: false });
+  let data;
 
-  if (error) {
-    throw error;
+  try {
+    const result = await client
+      .from("orders")
+      .select(ORDER_SELECT)
+      .eq("user_id", authUser.id)
+      .order("created_at", { ascending: false });
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    data = result.data;
+  } catch (issue) {
+    if (!isMissingProductEnhancementColumnError(issue)) {
+      throw issue;
+    }
+
+    const legacyResult = await client
+      .from("orders")
+      .select(LEGACY_ORDER_SELECT)
+      .eq("user_id", authUser.id)
+      .order("created_at", { ascending: false });
+
+    if (legacyResult.error) {
+      throw legacyResult.error;
+    }
+
+    data = legacyResult.data;
   }
 
   return (data ?? []).map((row) => mapRowToOrder(row as SupabaseOrderRow));
