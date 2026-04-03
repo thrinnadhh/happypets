@@ -8,19 +8,13 @@ import {
   logInternalError,
 } from "../_shared/cors.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
-
-type CartRow = {
-  id: string;
-  quantity: number;
-  selected?: boolean | null;
-  product: {
-    price_inr: number;
-    discount: number | null;
-  } | {
-    price_inr: number;
-    discount: number | null;
-  }[] | null;
-};
+import {
+  buildCartSignature,
+  calculateCartSubtotal,
+  ensureSingleShopCart,
+  fetchSelectedCartRows,
+  loadValidatedDeliveryQuote,
+} from "../_shared/delivery.ts";
 
 type CouponRow = {
   code: string;
@@ -29,11 +23,6 @@ type CouponRow = {
   min_order_inr: number | null;
   max_discount_inr: number | null;
 };
-
-function calculateDiscountedPrice(price: number, discount?: number | null): number {
-  if (!discount) return price;
-  return Math.max(price - (price * discount) / 100, 0);
-}
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -73,6 +62,14 @@ function sanitizeCouponCode(value: unknown): string | null {
   return normalized;
 }
 
+function sanitizeDeliveryQuoteId(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new HttpError(400, "Delivery quote is required.");
+  }
+
+  return value.trim();
+}
+
 async function getCurrentUser(request: Request) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -91,35 +88,6 @@ async function getCurrentUser(request: Request) {
   }
 
   return data.user;
-}
-
-async function fetchSelectedCart(adminClient: ReturnType<typeof createClient>, userId: string): Promise<CartRow[]> {
-  const attempt = async (selectClause: string): Promise<CartRow[]> => {
-    const { data, error } = await adminClient
-      .from("cart_items")
-      .select(selectClause)
-      .eq("user_id", userId);
-
-    if (error) {
-      throw error;
-    }
-
-    return (data ?? []) as CartRow[];
-  };
-
-  try {
-    const rows = await attempt(
-      "id, quantity, selected, product:products!cart_items_product_id_fkey(price_inr, discount)",
-    );
-    return rows.filter((row) => row.selected ?? true);
-  } catch (issue) {
-    const message = issue instanceof Error ? issue.message.toLowerCase() : "";
-    if (!message.includes("selected")) {
-      throw issue;
-    }
-
-    return attempt("id, quantity, product:products!cart_items_product_id_fkey(price_inr, discount)");
-  }
 }
 
 async function resolveCoupon(
@@ -154,10 +122,9 @@ async function resolveCoupon(
     throw new HttpError(400, "Coupon minimum order value not met.");
   }
 
-  let discountAmount =
-    coupon.discount_type === "percentage"
-      ? (subtotal * Number(coupon.discount_value)) / 100
-      : Number(coupon.discount_value);
+  let discountAmount = coupon.discount_type === "percentage"
+    ? (subtotal * Number(coupon.discount_value)) / 100
+    : Number(coupon.discount_value);
 
   if (coupon.max_discount_inr) {
     discountAmount = Math.min(discountAmount, Number(coupon.max_discount_inr));
@@ -185,6 +152,7 @@ serve(async (request) => {
     }
 
     const couponCode = sanitizeCouponCode((body as { couponCode?: unknown }).couponCode ?? null);
+    const deliveryQuoteId = sanitizeDeliveryQuoteId((body as { deliveryQuoteId?: unknown }).deliveryQuoteId);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -203,19 +171,20 @@ serve(async (request) => {
       maxRequests: 12,
       windowSeconds: 300,
     });
-    const cartRows = await fetchSelectedCart(adminClient, user.id);
 
-    if (!cartRows.length) {
-      throw new HttpError(400, "No selected cart items found for checkout.");
-    }
+    const cartRows = await fetchSelectedCartRows(adminClient, user.id);
+    const shopId = ensureSingleShopCart(cartRows);
+    const cartSignature = buildCartSignature(cartRows);
+    const subtotal = calculateCartSubtotal(cartRows);
+    const coupon = await resolveCoupon(adminClient, couponCode, subtotal);
+    const deliveryQuote = await loadValidatedDeliveryQuote(adminClient, {
+      deliveryQuoteId,
+      userId: user.id,
+      shopId,
+      cartSignature,
+    });
 
-    const subtotal = cartRows.reduce((sum, row) => {
-      const product = Array.isArray(row.product) ? row.product[0] : row.product;
-      return sum + calculateDiscountedPrice(Number(product?.price_inr ?? 0), product?.discount) * row.quantity;
-    }, 0);
-
-    const coupon = await resolveCoupon(adminClient, couponCode ?? null, subtotal);
-    const total = Math.max(subtotal - (coupon?.discountAmount ?? 0), 0);
+    const total = Math.max(subtotal - (coupon?.discountAmount ?? 0) + deliveryQuote.deliveryFeeInr, 0);
     const amountPaise = Math.round(total * 100);
 
     const auth = btoa(`${razorpayKeyId}:${razorpaySecret}`);
@@ -231,7 +200,10 @@ serve(async (request) => {
         receipt: `hpt-${Date.now()}`,
         notes: {
           user_id: user.id,
+          shop_id: shopId,
           coupon_code: coupon?.code ?? "",
+          delivery_quote_id: deliveryQuote.id,
+          delivery_fee_inr: String(deliveryQuote.deliveryFeeInr),
         },
       }),
     });
@@ -247,6 +219,7 @@ serve(async (request) => {
       amountPaise: razorpayOrder.amount,
       currency: razorpayOrder.currency,
       key: razorpayKeyId,
+      deliveryFeeInr: deliveryQuote.deliveryFeeInr,
     }));
   } catch (issue) {
     logInternalError("create-razorpay-order", issue);

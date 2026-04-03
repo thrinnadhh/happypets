@@ -9,11 +9,14 @@ import {
 } from "@/data/catalog";
 import {
   AdminRecord,
+  AdminDeliveryConfig,
   AdminCoupon,
   Banner,
   CartItem,
   CheckoutDetails,
   CouponResult,
+  DeliveryAddressSuggestion,
+  DeliveryQuote,
   LoginPayload,
   OrderItem,
   OrderRecord,
@@ -140,6 +143,18 @@ type SupabaseCouponRow = {
   created_at?: string | null;
 };
 
+type SupabaseAdminDeliveryConfigRow = {
+  shop_id: string;
+  origin_address: string;
+  origin_lat: number | string;
+  origin_lng: number | string;
+  base_fee_inr: number | string;
+  included_distance_km: number | string;
+  extra_per_km_inr: number | string;
+  max_service_distance_km: number | string;
+  is_active: boolean | null;
+};
+
 type SupabaseOrderItemRow = {
   product_id: string;
   product_name: string;
@@ -173,10 +188,15 @@ type CreateRazorpayOrderResponse = {
   amountPaise: number;
   currency: string;
   key: string;
+  deliveryFeeInr: number;
 };
 
 type VerifyRazorpayPaymentResponse = {
   order: SupabaseOrderRow;
+};
+
+type SearchDeliveryAddressesResponse = {
+  suggestions: DeliveryAddressSuggestion[];
 };
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
@@ -503,6 +523,25 @@ function mapRowToAdminCoupon(row: SupabaseCouponRow): AdminCoupon {
   };
 }
 
+function mapRowToAdminDeliveryConfig(
+  row: SupabaseAdminDeliveryConfigRow | null,
+  shopId: string,
+  shopName: string,
+): AdminDeliveryConfig {
+  return {
+    shopId,
+    shopName,
+    originAddress: row?.origin_address ?? "",
+    originLat: row ? Number(row.origin_lat) : null,
+    originLng: row ? Number(row.origin_lng) : null,
+    baseFeeInr: row ? Number(row.base_fee_inr) : 0,
+    includedDistanceKm: row ? Number(row.included_distance_km) : 0,
+    extraPerKmInr: row ? Number(row.extra_per_km_inr) : 0,
+    maxServiceDistanceKm: row ? Number(row.max_service_distance_km) : 15,
+    isActive: row?.is_active ?? false,
+  };
+}
+
 function mapRowToCartItem(row: SupabaseCartRow): CartItem {
   const productRow = Array.isArray(row.product) ? row.product[0] : row.product;
 
@@ -697,6 +736,14 @@ function validateCheckoutInput(checkout: CheckoutDetails): void {
   if (!checkout.deliveryTime || Number.isNaN(deliveryDate.getTime()) || deliveryDate.getTime() <= Date.now()) {
     throw new Error("Delivery time must be in the future.");
   }
+
+  if (!checkout.deliveryQuoteId.trim()) {
+    throw new Error("Calculate the delivery fee before checkout.");
+  }
+
+  if (!Number.isFinite(checkout.destinationLat) || !Number.isFinite(checkout.destinationLng)) {
+    throw new Error("Delivery location is invalid. Select the address again.");
+  }
 }
 
 function validateAdminCouponInput(input: {
@@ -741,6 +788,36 @@ function validateAdminCouponInput(input: {
 
   if (validFromTime >= validUntilTime) {
     throw new Error("Valid until must be later than valid from.");
+  }
+}
+
+function validateAdminDeliveryConfigInput(input: Omit<AdminDeliveryConfig, "shopName">): void {
+  if (!input.originAddress.trim()) {
+    throw new Error("Origin address is required.");
+  }
+
+  if (!Number.isFinite(input.originLat) || (input.originLat ?? 0) < -90 || (input.originLat ?? 0) > 90) {
+    throw new Error("Origin latitude must be between -90 and 90.");
+  }
+
+  if (!Number.isFinite(input.originLng) || (input.originLng ?? 0) < -180 || (input.originLng ?? 0) > 180) {
+    throw new Error("Origin longitude must be between -180 and 180.");
+  }
+
+  if (!Number.isFinite(input.baseFeeInr) || input.baseFeeInr < 0) {
+    throw new Error("Base delivery fee must be 0 or greater.");
+  }
+
+  if (!Number.isFinite(input.includedDistanceKm) || input.includedDistanceKm < 0) {
+    throw new Error("Included distance must be 0 or greater.");
+  }
+
+  if (!Number.isFinite(input.extraPerKmInr) || input.extraPerKmInr < 0) {
+    throw new Error("Extra per km fee must be 0 or greater.");
+  }
+
+  if (!Number.isFinite(input.maxServiceDistanceKm) || input.maxServiceDistanceKm <= 0) {
+    throw new Error("Maximum service distance must be greater than 0.");
   }
 }
 
@@ -851,6 +928,18 @@ function toCouponAdminError(issue: unknown, fallback = "Unable to create coupon.
 
   if (isPermissionDeniedError(issue, "coupons")) {
     return new Error("Coupon permissions are not set up for admins. Apply the Supabase coupon admin policy migration.");
+  }
+
+  return toError(issue, fallback);
+}
+
+function toDeliveryAdminError(issue: unknown, fallback = "Unable to save delivery settings."): Error {
+  if (isMissingTableError(issue, "shop_delivery_configs")) {
+    return new Error("Delivery pricing database is not set up. Apply the Supabase delivery pricing migration.");
+  }
+
+  if (isPermissionDeniedError(issue, "shop_delivery_configs")) {
+    return new Error("Delivery settings permissions are not set up for admins yet.");
   }
 
   return toError(issue, fallback);
@@ -2035,6 +2124,174 @@ export async function applyCouponInSupabase(
   };
 }
 
+export async function searchDeliveryAddressesInSupabase(query: string): Promise<DeliveryAddressSuggestion[]> {
+  const client = requireSupabaseClient();
+  const authUser = await getCurrentAuthUser();
+
+  if (!authUser) {
+    throw new Error("Sign in to search delivery addresses.");
+  }
+
+  const normalizedQuery = query.trim();
+  if (normalizedQuery.length < 5) {
+    return [];
+  }
+
+  const { data, error } = await client.functions.invoke<SearchDeliveryAddressesResponse>(
+    "search-delivery-addresses",
+    {
+      body: {
+        query: normalizedQuery,
+      },
+    },
+  );
+
+  if (error) {
+    throw new Error(await extractFunctionErrorMessage(error, "Unable to search delivery addresses."));
+  }
+
+  return data?.suggestions ?? [];
+}
+
+export async function quoteDeliveryInSupabase(input: {
+  address: string;
+  destinationLat?: number;
+  destinationLng?: number;
+}): Promise<DeliveryQuote> {
+  const client = requireSupabaseClient();
+  const authUser = await getCurrentAuthUser();
+
+  if (!authUser) {
+    throw new Error("Sign in to calculate delivery.");
+  }
+
+  const normalizedAddress = input.address.trim();
+  if (!normalizedAddress) {
+    throw new Error("Select a delivery address first.");
+  }
+
+  const { data, error } = await client.functions.invoke<DeliveryQuote>("quote-delivery", {
+    body: {
+      address: normalizedAddress,
+      destinationLat: input.destinationLat,
+      destinationLng: input.destinationLng,
+    },
+  });
+
+  if (error) {
+    throw new Error(await extractFunctionErrorMessage(error, "Unable to calculate the delivery fee."));
+  }
+
+  if (!data) {
+    throw new Error("Unable to calculate the delivery fee.");
+  }
+
+  return data;
+}
+
+export async function fetchAdminDeliveryConfigFromSupabase(): Promise<AdminDeliveryConfig> {
+  const client = requireSupabaseClient();
+  const profile = await getCurrentProfileRow();
+
+  if (!profile || profile.role !== "admin" || !profile.approved) {
+    throw new Error("Only approved admins can manage delivery settings.");
+  }
+
+  const shopId = await getCurrentAdminShopId(profile.id);
+  const { data: shop, error: shopError } = await client
+    .from("shops")
+    .select("name")
+    .eq("id", shopId)
+    .single();
+
+  if (shopError) {
+    throw shopError;
+  }
+
+  const { data, error } = await client
+    .from("shop_delivery_configs")
+    .select(
+      "shop_id, origin_address, origin_lat, origin_lng, base_fee_inr, included_distance_km, extra_per_km_inr, max_service_distance_km, is_active",
+    )
+    .eq("shop_id", shopId)
+    .maybeSingle();
+
+  if (error) {
+    throw toDeliveryAdminError(error, "Unable to load delivery settings.");
+  }
+
+  return mapRowToAdminDeliveryConfig(
+    (data ?? null) as SupabaseAdminDeliveryConfigRow | null,
+    shopId,
+    (shop.name as string | null) ?? "Your shop",
+  );
+}
+
+export async function upsertAdminDeliveryConfigInSupabase(
+  input: Omit<AdminDeliveryConfig, "shopId" | "shopName">,
+): Promise<AdminDeliveryConfig> {
+  const client = requireSupabaseClient();
+  const profile = await getCurrentProfileRow();
+
+  if (!profile || profile.role !== "admin" || !profile.approved) {
+    throw new Error("Only approved admins can manage delivery settings.");
+  }
+
+  const shopId = await getCurrentAdminShopId(profile.id);
+  const { data: shop, error: shopError } = await client
+    .from("shops")
+    .select("name")
+    .eq("id", shopId)
+    .single();
+
+  if (shopError) {
+    throw shopError;
+  }
+
+  validateAdminDeliveryConfigInput({
+    shopId,
+    originAddress: input.originAddress,
+    originLat: input.originLat,
+    originLng: input.originLng,
+    baseFeeInr: input.baseFeeInr,
+    includedDistanceKm: input.includedDistanceKm,
+    extraPerKmInr: input.extraPerKmInr,
+    maxServiceDistanceKm: input.maxServiceDistanceKm,
+    isActive: input.isActive,
+  });
+
+  const { data, error } = await client
+    .from("shop_delivery_configs")
+    .upsert(
+      {
+        shop_id: shopId,
+        origin_address: input.originAddress.trim(),
+        origin_lat: input.originLat,
+        origin_lng: input.originLng,
+        base_fee_inr: input.baseFeeInr,
+        included_distance_km: input.includedDistanceKm,
+        extra_per_km_inr: input.extraPerKmInr,
+        max_service_distance_km: input.maxServiceDistanceKm,
+        is_active: input.isActive,
+      },
+      { onConflict: "shop_id" },
+    )
+    .select(
+      "shop_id, origin_address, origin_lat, origin_lng, base_fee_inr, included_distance_km, extra_per_km_inr, max_service_distance_km, is_active",
+    )
+    .single();
+
+  if (error) {
+    throw toDeliveryAdminError(error);
+  }
+
+  return mapRowToAdminDeliveryConfig(
+    data as SupabaseAdminDeliveryConfigRow,
+    shopId,
+    (shop.name as string | null) ?? "Your shop",
+  );
+}
+
 export async function fetchAdminCouponsFromSupabase(): Promise<AdminCoupon[]> {
   const client = requireSupabaseClient();
   const profile = await getCurrentProfileRow();
@@ -2178,6 +2435,7 @@ export async function placeOrderInSupabase(
     {
       body: {
         couponCode: coupon?.code ?? null,
+        deliveryQuoteId: checkout.deliveryQuoteId,
       },
     },
   );

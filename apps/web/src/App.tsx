@@ -13,6 +13,7 @@ import { SupportPage } from "@/pages/customer/SupportPage";
 import { AdminBannersPage } from "@/pages/admin/BannersPage";
 import { AdminCouponsPage } from "@/pages/admin/CouponsPage";
 import { AdminDashboardPage } from "@/pages/admin/DashboardPage";
+import { AdminDeliveryPage } from "@/pages/admin/DeliveryPage";
 import { AdminProductsPage } from "@/pages/admin/ProductsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { SuperAdminAdminsPage } from "@/pages/superadmin/AdminsPage";
@@ -131,6 +132,14 @@ export default function App(): JSX.Element {
           element={
             <ProtectedRoute allowedRoles={["admin"]} requireApproved>
               <AdminCouponsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/delivery"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]} requireApproved>
+              <AdminDeliveryPage />
             </ProtectedRoute>
           }
         />

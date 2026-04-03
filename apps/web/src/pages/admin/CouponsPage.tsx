@@ -6,14 +6,8 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatInr } from "@/lib/commerce";
 import { createAdminCouponInSupabase, fetchAdminCouponsFromSupabase } from "@/lib/supabase";
+import { adminLinks } from "@/pages/admin/navigation";
 import { AdminCoupon } from "@/types";
-
-const adminLinks = [
-  { to: "/admin/dashboard", label: "Dashboard" },
-  { to: "/admin/products", label: "Products" },
-  { to: "/admin/banners", label: "Banners" },
-  { to: "/admin/coupons", label: "Coupons" },
-];
 
 type CouponFormState = {
   code: string;

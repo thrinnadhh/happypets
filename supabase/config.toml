@@ -9,3 +9,9 @@ verify_jwt = false
 
 [functions.auto-cancel-orders]
 verify_jwt = true
+
+[functions.quote-delivery]
+verify_jwt = false
+
+[functions.search-delivery-addresses]
+verify_jwt = false

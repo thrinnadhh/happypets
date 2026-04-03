@@ -10,14 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCatalog } from "@/contexts/CatalogContext";
 import { displaySectionLabels, productTagLabels, sortProductsByPosition } from "@/data/catalog";
 import { formatInr } from "@/lib/commerce";
+import { adminLinks } from "@/pages/admin/navigation";
 import { Product } from "@/types";
-
-const adminLinks = [
-  { to: "/admin/dashboard", label: "Dashboard" },
-  { to: "/admin/products", label: "Products" },
-  { to: "/admin/banners", label: "Banners" },
-  { to: "/admin/coupons", label: "Coupons" },
-];
 
 export function AdminProductsPage(): JSX.Element {
   const { user } = useAuth();

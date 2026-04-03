@@ -90,6 +90,40 @@ export type CouponResult = {
   discountAmount: number;
 };
 
+export type DeliveryAddressSuggestion = {
+  id: string;
+  address: string;
+  secondaryText: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type DeliveryQuote = {
+  deliveryQuoteId: string;
+  shopId: string;
+  normalizedAddress: string;
+  destinationLat: number;
+  destinationLng: number;
+  distanceMeters: number;
+  durationSeconds: number;
+  deliveryFeeInr: number;
+  serviceable: boolean;
+  expiresAt: string;
+};
+
+export type AdminDeliveryConfig = {
+  shopId: string;
+  shopName: string;
+  originAddress: string;
+  originLat: number | null;
+  originLng: number | null;
+  baseFeeInr: number;
+  includedDistanceKm: number;
+  extraPerKmInr: number;
+  maxServiceDistanceKm: number;
+  isActive: boolean;
+};
+
 export type AdminCoupon = {
   id: string;
   code: string;
@@ -108,6 +142,9 @@ export type CheckoutDetails = {
   address: string;
   mobileNumber: string;
   deliveryTime: string;
+  deliveryQuoteId: string;
+  destinationLat: number;
+  destinationLng: number;
 };
 
 export type OrderItem = {

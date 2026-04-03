@@ -4,13 +4,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { summaryCards } from "@/data/mockData";
 import { useAuth } from "@/contexts/AuthContext";
-
-const adminLinks = [
-  { to: "/admin/dashboard", label: "Dashboard" },
-  { to: "/admin/products", label: "Products" },
-  { to: "/admin/banners", label: "Banners" },
-  { to: "/admin/coupons", label: "Coupons" },
-];
+import { adminLinks } from "@/pages/admin/navigation";
 
 export function AdminDashboardPage(): JSX.Element {
   const { user } = useAuth();

@@ -9,33 +9,23 @@ import {
   timingSafeEqual,
 } from "../_shared/cors.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
+import {
+  buildCartSignature,
+  calculateCartSubtotal,
+  calculateDiscountedPrice,
+  ensureSingleShopCart,
+  fetchSelectedCartRows,
+  getCartProduct,
+  loadValidatedDeliveryQuote,
+} from "../_shared/delivery.ts";
 
 type CheckoutPayload = {
   address: string;
   mobileNumber: string;
   deliveryTime: string;
-};
-
-type CartRow = {
-  id: string;
-  product_id: string;
-  quantity: number;
-  selected?: boolean | null;
-  product: {
-    name: string;
-    images: string[] | null;
-    price_inr: number;
-    discount: number | null;
-    shop_id: string;
-    is_sample?: boolean | null;
-  } | {
-    name: string;
-    images: string[] | null;
-    price_inr: number;
-    discount: number | null;
-    shop_id: string;
-    is_sample?: boolean | null;
-  }[] | null;
+  deliveryQuoteId: string;
+  destinationLat: number;
+  destinationLng: number;
 };
 
 type CouponRow = {
@@ -78,11 +68,6 @@ function isMissingProductEnhancementColumnError(issue: unknown): boolean {
   return message.includes("is_sample");
 }
 
-function calculateDiscountedPrice(price: number, discount?: number | null): number {
-  if (!discount) return price;
-  return Math.max(price - (price * discount) / 100, 0);
-}
-
 function buildOrderNumber(): string {
   const now = new Date();
   const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(
@@ -104,6 +89,14 @@ function validateCheckoutPayload(checkout: CheckoutPayload): void {
   const deliveryDate = new Date(checkout.deliveryTime);
   if (!checkout.deliveryTime || Number.isNaN(deliveryDate.getTime()) || deliveryDate.getTime() <= Date.now()) {
     throw new HttpError(400, "Delivery time must be in the future.");
+  }
+
+  if (!checkout.deliveryQuoteId.trim()) {
+    throw new HttpError(400, "Delivery quote is required.");
+  }
+
+  if (!Number.isFinite(checkout.destinationLat) || !Number.isFinite(checkout.destinationLng)) {
+    throw new HttpError(400, "Delivery coordinates are invalid.");
   }
 }
 
@@ -186,51 +179,6 @@ function sanitizeCouponCode(value: unknown): string | null {
   }
 
   return normalized;
-}
-
-async function fetchSelectedCart(adminClient: ReturnType<typeof createClient>, userId: string): Promise<CartRow[]> {
-  const attempt = async (selectClause: string): Promise<CartRow[]> => {
-    const { data, error } = await adminClient
-      .from("cart_items")
-      .select(selectClause)
-      .eq("user_id", userId);
-
-    if (error) {
-      throw error;
-    }
-
-    return (data ?? []) as CartRow[];
-  };
-
-  try {
-    const rows = await attempt(
-      "id, product_id, quantity, selected, product:products!cart_items_product_id_fkey(name, images, price_inr, discount, shop_id, is_sample)",
-    );
-    return rows.filter((row) => row.selected ?? true);
-  } catch (issue) {
-    if (!isMissingProductEnhancementColumnError(issue)) {
-      const message = issue instanceof Error ? issue.message.toLowerCase() : "";
-      if (!message.includes("selected")) {
-        throw issue;
-      }
-    }
-
-    try {
-      const rows = await attempt(
-        "id, product_id, quantity, selected, product:products!cart_items_product_id_fkey(name, images, price_inr, discount, shop_id)",
-      );
-      return rows.filter((row) => row.selected ?? true);
-    } catch (legacyIssue) {
-      const message = legacyIssue instanceof Error ? legacyIssue.message.toLowerCase() : "";
-      if (!message.includes("selected")) {
-        throw legacyIssue;
-      }
-
-      return attempt(
-        "id, product_id, quantity, product:products!cart_items_product_id_fkey(name, images, price_inr, discount, shop_id)",
-      );
-    }
-  }
 }
 
 async function fetchOrderWithItems(
@@ -404,13 +352,12 @@ serve(async (request) => {
 
     const { data: existingOrder } = await adminClient
       .from("orders")
-      .select("id, order_number, status, total_inr, delivery_address, mobile_number, delivery_time, created_at")
+      .select("id")
       .eq("razorpay_payment_id", razorpay_payment_id)
       .maybeSingle();
 
-    if (existingOrder) {
+    if (existingOrder?.id) {
       const existingOrderWithItems = await fetchOrderWithItems(adminClient, existingOrder.id);
-
       return withCors(request, jsonResponse({ order: existingOrderWithItems }));
     }
 
@@ -425,7 +372,13 @@ serve(async (request) => {
       throw new HttpError(502, "Unable to confirm the payment with the provider.", { expose: false });
     }
 
-    const payment = await paymentResponse.json();
+    const payment = await paymentResponse.json() as {
+      order_id?: string;
+      status?: string;
+      method?: string;
+      amount?: number;
+    };
+
     if (payment.order_id !== razorpay_order_id) {
       throw new HttpError(400, "Payment order mismatch.");
     }
@@ -438,18 +391,25 @@ serve(async (request) => {
       throw new HttpError(400, `Payment status is ${payment.status}, not completed.`);
     }
 
-    const cartRows = await fetchSelectedCart(adminClient, user.id);
-    if (!cartRows.length) {
-      throw new HttpError(400, "No selected cart items found for checkout.");
-    }
-
-    const subtotal = cartRows.reduce((sum, row) => {
-      const product = Array.isArray(row.product) ? row.product[0] : row.product;
-      return sum + calculateDiscountedPrice(Number(product?.price_inr ?? 0), product?.discount) * row.quantity;
-    }, 0);
-    const coupon = await resolveCoupon(adminClient, couponCode ?? null, subtotal);
+    const cartRows = await fetchSelectedCartRows(adminClient, user.id);
+    const shopId = ensureSingleShopCart(cartRows);
+    const cartSignature = buildCartSignature(cartRows);
+    const subtotal = calculateCartSubtotal(cartRows);
+    const coupon = await resolveCoupon(adminClient, couponCode, subtotal);
     const discountAmount = coupon?.discountAmount ?? 0;
-    const total = Math.max(subtotal - discountAmount, 0);
+    const deliveryQuote = await loadValidatedDeliveryQuote(adminClient, {
+      deliveryQuoteId: checkout.deliveryQuoteId,
+      userId: user.id,
+      shopId,
+      cartSignature,
+      allowExpired: true,
+    });
+    const total = Math.max(subtotal - discountAmount + deliveryQuote.deliveryFeeInr, 0);
+    const expectedAmountPaise = Math.round(total * 100);
+
+    if (Number(payment.amount ?? 0) !== expectedAmountPaise) {
+      throw new HttpError(400, "Payment amount does not match the latest delivery quote.");
+    }
 
     const { data: profile } = await adminClient
       .from("profiles")
@@ -464,7 +424,7 @@ serve(async (request) => {
         label: "Delivery",
         full_name: profile?.full_name ?? "HappyPets Customer",
         phone: checkout.mobileNumber,
-        address_line1: checkout.address,
+        address_line1: deliveryQuote.destinationAddress,
         city: "NA",
         state: "NA",
         pincode: "000000",
@@ -478,7 +438,7 @@ serve(async (request) => {
     }
 
     const paymentMethod =
-      ["upi", "card", "netbanking", "wallet"].includes(payment.method) ? payment.method : "card";
+      ["upi", "card", "netbanking", "wallet"].includes(payment.method ?? "") ? payment.method : "card";
 
     const { data: order, error: orderError } = await adminClient
       .from("orders")
@@ -489,17 +449,33 @@ serve(async (request) => {
         status: "confirmed",
         subtotal_inr: subtotal,
         gst_amount: 0,
-        shipping_inr: 0,
+        shipping_inr: deliveryQuote.deliveryFeeInr,
         discount_inr: discountAmount,
         total_inr: total,
         payment_method: paymentMethod,
         payment_status: "paid",
         razorpay_order_id: razorpay_order_id,
         razorpay_payment_id: razorpay_payment_id,
-        delivery_address: checkout.address,
+        delivery_address: deliveryQuote.destinationAddress,
         mobile_number: checkout.mobileNumber,
         delivery_time: checkout.deliveryTime,
         coupon_code: coupon?.code ?? null,
+        delivery_fee_inr: deliveryQuote.deliveryFeeInr,
+        delivery_distance_meters: deliveryQuote.distanceMeters,
+        delivery_duration_seconds: deliveryQuote.durationSeconds,
+        delivery_origin_shop_id: deliveryQuote.shopId,
+        delivery_quote_snapshot: {
+          deliveryQuoteId: deliveryQuote.id,
+          destinationAddress: deliveryQuote.destinationAddress,
+          destinationLat: deliveryQuote.destinationLat,
+          destinationLng: deliveryQuote.destinationLng,
+          distanceMeters: deliveryQuote.distanceMeters,
+          durationSeconds: deliveryQuote.durationSeconds,
+          deliveryFeeInr: deliveryQuote.deliveryFeeInr,
+          expiresAt: deliveryQuote.expiresAt,
+          checkoutDestinationLat: checkout.destinationLat,
+          checkoutDestinationLng: checkout.destinationLng,
+        },
       })
       .select("id")
       .single();
@@ -509,7 +485,7 @@ serve(async (request) => {
     }
 
     const orderItems = cartRows.map((row) => {
-      const product = Array.isArray(row.product) ? row.product[0] : row.product;
+      const product = getCartProduct(row);
       const unitPrice = calculateDiscountedPrice(Number(product?.price_inr ?? 0), product?.discount);
       return {
         order_id: order.id,
@@ -533,7 +509,7 @@ serve(async (request) => {
 
     const soldDeltas = new Map<string, { soldCount: number; revenue: number }>();
     cartRows.forEach((row) => {
-      const product = Array.isArray(row.product) ? row.product[0] : row.product;
+      const product = getCartProduct(row);
       const current = soldDeltas.get(row.product_id) ?? { soldCount: 0, revenue: 0 };
       const unitPrice = calculateDiscountedPrice(Number(product?.price_inr ?? 0), product?.discount);
       current.soldCount += row.quantity;

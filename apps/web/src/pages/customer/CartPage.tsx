@@ -1,12 +1,16 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Loader } from "@/components/common/Loader";
+import { PinLocationMap } from "@/components/maps/PinLocationMap";
 import { PageTransition } from "@/components/common/PageTransition";
 import { Navbar } from "@/components/layout/Navbar";
 import { useCart } from "@/contexts/CartContext";
 import { calculateDiscountedPrice, formatInr, isProductExpired } from "@/lib/commerce";
+import { quoteDeliveryInSupabase, searchDeliveryAddressesInSupabase } from "@/lib/supabase";
+import { LatLng, getDefaultIndiaCenter, hasTomTomPublicKey, reverseGeocodeTomTom } from "@/lib/tomtom";
+import { DeliveryAddressSuggestion, DeliveryQuote } from "@/types";
 
 function mapCheckoutIssue(issue: unknown): { error: string; notice: string } {
   const message = issue instanceof Error ? issue.message : "Unable to complete payment.";
@@ -28,6 +32,21 @@ function toDateTimeLocalMinValue(date = new Date()): string {
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60_000);
   return local.toISOString().slice(0, 16);
+}
+
+function formatDistance(distanceMeters: number): string {
+  return `${(distanceMeters / 1000).toFixed(1)} km`;
+}
+
+function formatDuration(durationSeconds: number): string {
+  const roundedMinutes = Math.max(Math.round(durationSeconds / 60), 1);
+  if (roundedMinutes < 60) {
+    return `${roundedMinutes} min`;
+  }
+
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
 function validateCheckoutFields(address: string, mobileNumber: string, deliveryTime: string): Partial<Record<"address" | "mobileNumber" | "deliveryTime", string>> {
@@ -67,7 +86,16 @@ export function CartPage(): JSX.Element {
     placeOrder,
   } = useCart();
   const [couponCode, setCouponCode] = useState("");
-  const [address, setAddress] = useState("");
+  const [addressQuery, setAddressQuery] = useState("");
+  const [addressSuggestions, setAddressSuggestions] = useState<DeliveryAddressSuggestion[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<DeliveryAddressSuggestion | null>(null);
+  const [searchingAddresses, setSearchingAddresses] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState("");
+  const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
+  const [deliveryQuoteError, setDeliveryQuoteError] = useState("");
+  const [quotingDelivery, setQuotingDelivery] = useState(false);
+  const [mapError, setMapError] = useState("");
+  const [resolvingMapPin, setResolvingMapPin] = useState(false);
   const [mobileNumber, setMobileNumber] = useState("");
   const [deliveryTime, setDeliveryTime] = useState("");
   const [couponError, setCouponError] = useState("");
@@ -78,7 +106,31 @@ export function CartPage(): JSX.Element {
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
 
   const selectedCount = useMemo(() => items.filter((item) => item.selected).length, [items]);
-  const checkoutFieldErrors = validateCheckoutFields(address, mobileNumber, deliveryTime);
+  const selectedShopIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          items
+            .filter((item) => item.selected)
+            .map((item) => item.product.shopId)
+            .filter((shopId): shopId is string => Boolean(shopId)),
+        ),
+      ),
+    [items],
+  );
+  const hasMultiShopSelection = selectedShopIds.length > 1;
+  const canShowMap = hasTomTomPublicKey();
+  const selectedCartKey = useMemo(
+    () =>
+      items
+        .filter((item) => item.selected)
+        .map((item) => `${item.id}:${item.quantity}:${item.product.shopId ?? ""}`)
+        .sort()
+        .join("|"),
+    [items],
+  );
+  const checkoutAddress = deliveryQuote?.normalizedAddress ?? selectedAddress?.address ?? addressQuery;
+  const checkoutFieldErrors = validateCheckoutFields(checkoutAddress, mobileNumber, deliveryTime);
   const invalidSelectedItems = items.filter((item) => {
     if (!item.selected) {
       return false;
@@ -86,8 +138,168 @@ export function CartPage(): JSX.Element {
 
     return item.product.quantity <= 0 || item.quantity > item.product.quantity || isProductExpired(item.product.expiryDate);
   });
+  const payableTotal = total + (deliveryQuote?.deliveryFeeInr ?? 0);
+  const currentMapPosition: LatLng | null = useMemo(() => {
+    if (deliveryQuote) {
+      return {
+        lat: deliveryQuote.destinationLat,
+        lng: deliveryQuote.destinationLng,
+      };
+    }
+
+    if (selectedAddress) {
+      return {
+        lat: selectedAddress.latitude,
+        lng: selectedAddress.longitude,
+      };
+    }
+
+    return null;
+  }, [deliveryQuote, selectedAddress]);
+  const mapCenter = currentMapPosition ?? getDefaultIndiaCenter();
   const canSubmitCheckout =
-    !placingOrder && selectedCount > 0 && !invalidSelectedItems.length && Object.keys(checkoutFieldErrors).length === 0;
+    !placingOrder &&
+    !quotingDelivery &&
+    selectedCount > 0 &&
+    !hasMultiShopSelection &&
+    !invalidSelectedItems.length &&
+    Object.keys(checkoutFieldErrors).length === 0 &&
+    Boolean(deliveryQuote);
+
+  useEffect(() => {
+    const normalizedQuery = addressQuery.trim();
+
+    if (!normalizedQuery || normalizedQuery.length < 5 || selectedAddress?.address === normalizedQuery || hasMultiShopSelection) {
+      setAddressSuggestions([]);
+      setSearchingAddresses(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setSearchingAddresses(true);
+        setAddressSearchError("");
+        const suggestions = await searchDeliveryAddressesInSupabase(normalizedQuery);
+        if (!cancelled) {
+      setAddressSuggestions(suggestions);
+        }
+      } catch (issue) {
+        if (!cancelled) {
+          setAddressSuggestions([]);
+          setAddressSearchError(issue instanceof Error ? issue.message : "Unable to search addresses.");
+        }
+      } finally {
+        if (!cancelled) {
+          setSearchingAddresses(false);
+        }
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [addressQuery, hasMultiShopSelection, selectedAddress?.address]);
+
+  useEffect(() => {
+    if (deliveryQuote) {
+      setDeliveryQuote(null);
+      setDeliveryQuoteError("Cart changed. Recalculate the delivery fee.");
+    }
+  }, [selectedCartKey]);
+
+  const handleAddressInputChange = (value: string): void => {
+    setAddressQuery(value);
+    setSelectedAddress(null);
+    setAddressSuggestions([]);
+    setDeliveryQuote(null);
+    setAddressSearchError("");
+    setDeliveryQuoteError("");
+    setMapError("");
+  };
+
+  const handleSelectAddress = (suggestion: DeliveryAddressSuggestion): void => {
+    setSelectedAddress(suggestion);
+    setAddressQuery(suggestion.address);
+    setAddressSuggestions([]);
+    setAddressSearchError("");
+    setDeliveryQuote(null);
+    setDeliveryQuoteError("");
+    setMapError("");
+  };
+
+  const handlePickCustomerLocation = async (position: LatLng): Promise<void> => {
+    setResolvingMapPin(true);
+    setMapError("");
+    setAddressSearchError("");
+    setDeliveryQuote(null);
+    setDeliveryQuoteError("");
+    setAddressSuggestions([]);
+    setSelectedAddress({
+      id: `map-${position.lat}-${position.lng}`,
+      address: addressQuery.trim() || "Selected map pin",
+      secondaryText: "Resolving selected pin...",
+      latitude: position.lat,
+      longitude: position.lng,
+    });
+
+    try {
+      const result = await reverseGeocodeTomTom(position);
+      setSelectedAddress({
+        id: `map-${result.latitude}-${result.longitude}`,
+        address: result.address,
+        secondaryText: "Selected from map",
+        latitude: result.latitude,
+        longitude: result.longitude,
+      });
+      setAddressQuery(result.address);
+    } catch (issue) {
+      setMapError(issue instanceof Error ? issue.message : "Unable to resolve the selected map pin.");
+    } finally {
+      setResolvingMapPin(false);
+    }
+  };
+
+  const handleQuoteDelivery = async (): Promise<void> => {
+    if (hasMultiShopSelection) {
+      setDeliveryQuoteError("Select items from a single shop before calculating delivery.");
+      return;
+    }
+
+    const addressToQuote = selectedAddress?.address ?? addressQuery.trim();
+    if (!addressToQuote) {
+      setDeliveryQuoteError("Select a delivery address first.");
+      return;
+    }
+
+    setQuotingDelivery(true);
+    setDeliveryQuoteError("");
+
+    try {
+      const quote = await quoteDeliveryInSupabase({
+        address: addressToQuote,
+        destinationLat: selectedAddress?.latitude,
+        destinationLng: selectedAddress?.longitude,
+      });
+      setDeliveryQuote(quote);
+      setSelectedAddress({
+        id: `quote-${quote.deliveryQuoteId}`,
+        address: quote.normalizedAddress,
+        secondaryText: "",
+        latitude: quote.destinationLat,
+        longitude: quote.destinationLng,
+      });
+      setAddressQuery(quote.normalizedAddress);
+      setAddressSuggestions([]);
+      setAddressSearchError("");
+    } catch (issue) {
+      setDeliveryQuote(null);
+      setDeliveryQuoteError(issue instanceof Error ? issue.message : "Unable to calculate the delivery fee.");
+    } finally {
+      setQuotingDelivery(false);
+    }
+  };
 
   const handleCouponSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -117,12 +329,31 @@ export function CartPage(): JSX.Element {
       return;
     }
 
+    if (hasMultiShopSelection) {
+      setCheckoutNotice("");
+      setCheckoutError("Select items from one shop only before checkout.");
+      return;
+    }
+
+    if (!deliveryQuote) {
+      setCheckoutNotice("");
+      setCheckoutError("Calculate the delivery fee before checkout.");
+      return;
+    }
+
     setPlacingOrder(true);
     setCheckoutError("");
     setCheckoutNotice("");
 
     try {
-      await placeOrder({ address, mobileNumber, deliveryTime });
+      await placeOrder({
+        address: deliveryQuote.normalizedAddress,
+        mobileNumber,
+        deliveryTime,
+        deliveryQuoteId: deliveryQuote.deliveryQuoteId,
+        destinationLat: deliveryQuote.destinationLat,
+        destinationLng: deliveryQuote.destinationLng,
+      });
       navigate("/customer/home");
     } catch (issue) {
       const result = mapCheckoutIssue(issue);
@@ -332,9 +563,13 @@ export function CartPage(): JSX.Element {
                     <span>Coupon discount</span>
                     <span>- {formatInr(discountAmount)}</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span>Delivery</span>
+                    <span>{deliveryQuote ? formatInr(deliveryQuote.deliveryFeeInr) : "Calculate"}</span>
+                  </div>
                   <div className="flex items-center justify-between border-t border-[#eadfce] pt-3 text-base font-semibold text-ink">
                     <span>Total</span>
-                    <span>{formatInr(total)}</span>
+                    <span>{formatInr(payableTotal)}</span>
                   </div>
                 </div>
               </section>
@@ -349,15 +584,97 @@ export function CartPage(): JSX.Element {
 
                   <label className="field">
                     <span>Delivery address</span>
-                    <textarea
-                      value={address}
-                      onChange={(event) => setAddress(event.target.value)}
-                      className="input min-h-[120px]"
-                      placeholder="House / flat, street, landmark"
+                    <input
+                      value={addressQuery}
+                      onChange={(event) => handleAddressInputChange(event.target.value)}
+                      className="input"
+                      placeholder="Search house / flat, street, area, landmark"
                       required
                     />
                     {checkoutFieldErrors.address ? <p className="text-xs text-rose-500">{checkoutFieldErrors.address}</p> : null}
                   </label>
+
+                  {searchingAddresses ? <p className="text-xs text-slate-500">Searching TomTom addresses...</p> : null}
+                  {addressSearchError ? <p className="text-xs text-rose-500">{addressSearchError}</p> : null}
+                  {addressSuggestions.length ? (
+                    <div className="space-y-2 rounded-[24px] border border-[#eadfce] bg-white p-3">
+                      {addressSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion.id}
+                          type="button"
+                          onClick={() => handleSelectAddress(suggestion)}
+                          className="w-full rounded-[18px] border border-transparent bg-[#fcfaf6] px-4 py-3 text-left transition hover:border-brand-200 hover:bg-brand-50"
+                        >
+                          <p className="text-sm font-semibold text-ink">{suggestion.address}</p>
+                          {suggestion.secondaryText ? (
+                            <p className="mt-1 text-xs text-slate-500">{suggestion.secondaryText}</p>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-[24px] border border-[#eadfce] bg-[#fcfaf6] p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-ink">Refine delivery pin</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Search first, then click or drag the pin on the map to lock the exact delivery spot.
+                        </p>
+                      </div>
+                      {resolvingMapPin ? <p className="text-xs text-slate-500">Resolving pin...</p> : null}
+                    </div>
+                    {canShowMap ? (
+                      <div className="mt-4 space-y-3">
+                        <PinLocationMap
+                          center={mapCenter}
+                          marker={currentMapPosition}
+                          onPick={(position) => {
+                            void handlePickCustomerLocation(position);
+                          }}
+                        />
+                        <p className="text-xs text-slate-500">
+                          Click anywhere on the map or drag the marker to improve routing accuracy.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm text-amber-700">
+                        Add `VITE_TOMTOM_API_KEY` or `NEXT_PUBLIC_TOMTOM_API_KEY` to enable in-browser map pinning.
+                      </p>
+                    )}
+                    {mapError ? <p className="mt-3 text-xs text-rose-500">{mapError}</p> : null}
+                  </div>
+
+                  <div className="rounded-[24px] border border-[#eadfce] bg-[#fcfaf6] p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-ink">Delivery quote</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Select an address, then calculate the delivery fee from the fulfilling shop.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleQuoteDelivery()}
+                        disabled={quotingDelivery || !addressQuery.trim() || hasMultiShopSelection}
+                        className="soft-button disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {quotingDelivery ? "Calculating..." : "Calculate delivery"}
+                      </button>
+                    </div>
+                    {selectedAddress ? (
+                      <p className="mt-4 text-sm text-slate-600">Selected address: {selectedAddress.address}</p>
+                    ) : null}
+                    {deliveryQuote ? (
+                      <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                        <p className="font-semibold">Delivery fee: {formatInr(deliveryQuote.deliveryFeeInr)}</p>
+                        <p className="mt-1">
+                          {formatDistance(deliveryQuote.distanceMeters)} away • approx. {formatDuration(deliveryQuote.durationSeconds)}
+                        </p>
+                      </div>
+                    ) : null}
+                    {deliveryQuoteError ? <p className="mt-3 text-sm text-rose-500">{deliveryQuoteError}</p> : null}
+                  </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="field">
@@ -387,6 +704,9 @@ export function CartPage(): JSX.Element {
                   </div>
 
                   {error ? <p className="text-sm text-rose-500">{error}</p> : null}
+                  {hasMultiShopSelection ? (
+                    <p className="text-sm text-rose-500">Selected items must come from a single shop before checkout.</p>
+                  ) : null}
                   {invalidSelectedItems.length ? (
                     <p className="text-sm text-rose-500">Remove expired or out-of-stock items before checkout.</p>
                   ) : null}
@@ -396,9 +716,9 @@ export function CartPage(): JSX.Element {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-medium text-ink">Amount payable</p>
-                        <p className="mt-1 text-sm text-slate-500">Selected items only</p>
+                        <p className="mt-1 text-sm text-slate-500">Includes delivery after quote confirmation</p>
                       </div>
-                      <p className="text-2xl font-semibold text-ink">{formatInr(total)}</p>
+                      <p className="text-2xl font-semibold text-ink">{formatInr(payableTotal)}</p>
                     </div>
                     <button disabled={!canSubmitCheckout} className="primary-button mt-4 w-full justify-center disabled:cursor-not-allowed disabled:opacity-60">
                       {placingOrder ? "Opening Razorpay..." : "Pay with Razorpay"}
