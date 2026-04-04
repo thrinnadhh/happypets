@@ -30,20 +30,23 @@ function ProductRail({
       initial={{ opacity: 0, y: 18 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-120px" }}
-      className="rounded-[34px] border border-white/60 bg-white/74 p-6 shadow-card backdrop-blur-sm md:p-8"
+      className="rounded-[28px] border border-white/60 bg-white/78 p-4 shadow-card backdrop-blur-sm sm:p-5 md:rounded-[34px] md:p-8"
     >
-      <div className="flex flex-col gap-4 border-b border-[#eee2cf] pb-5 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-3 border-b border-[#eee2cf] pb-4 md:flex-row md:items-end md:justify-between md:gap-4 md:pb-5">
         <div>
-          <h2 className="font-heading text-4xl font-semibold text-ink">{title}</h2>
-          {description ? <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{description}</p> : null}
+          <h2 className="font-heading text-3xl font-semibold text-ink md:text-4xl">{title}</h2>
+          {description ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:mt-3 md:leading-7">{description}</p> : null}
         </div>
         {cta}
       </div>
 
       {products.length ? (
-        <div className="mt-6 flex snap-x gap-5 overflow-x-auto pb-2">
+        <div className="mt-5 flex snap-x gap-3 overflow-x-auto pb-2 sm:gap-4 md:mt-6 md:gap-5">
           {products.map((product) => (
-            <div key={product.id} className="min-w-[280px] max-w-[280px] snap-start sm:min-w-[300px] sm:max-w-[300px]">
+            <div
+              key={product.id}
+              className="min-w-[224px] max-w-[224px] snap-start sm:min-w-[252px] sm:max-w-[252px] md:min-w-[280px] md:max-w-[280px] lg:min-w-[300px] lg:max-w-[300px]"
+            >
               <ProductCard product={product} />
             </div>
           ))}
@@ -104,12 +107,10 @@ function BannerSlider({ banners }: { banners: Banner[] }): JSX.Element {
 
   if (!banners.length) {
     return (
-      <section className="relative overflow-hidden rounded-[34px] bg-[#17324a] p-8 text-white shadow-[0_28px_60px_rgba(23,50,74,0.28)] md:p-10">
+      <section className="relative overflow-hidden rounded-[28px] bg-[#17324a] shadow-[0_28px_60px_rgba(23,50,74,0.28)] md:rounded-[34px]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.28),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.05),transparent_46%)]" />
-        <div className="relative">
-          <h1 className="mt-5 max-w-3xl font-heading text-5xl font-semibold tracking-[-0.04em] md:text-6xl">
-            Premium pet nutrition, samples, and seasonal promotions in one storefront.
-          </h1>
+        <div className="relative h-[220px] sm:h-[280px] md:h-[360px]">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#17324a] via-[#274764] to-[#355b80]" />
         </div>
       </section>
     );
@@ -125,11 +126,10 @@ function BannerSlider({ banners }: { banners: Banner[] }): JSX.Element {
 
   return (
     <section
-      className="relative overflow-hidden rounded-[34px] shadow-[0_28px_60px_rgba(23,50,74,0.22)]"
+      className="relative overflow-hidden rounded-[28px] shadow-[0_28px_60px_rgba(23,50,74,0.22)] md:rounded-[34px]"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#102232]/72 via-[#102232]/22 to-transparent" />
       <AnimatePresence mode="wait">
         <motion.img
           key={activeBanner.id}
@@ -139,18 +139,13 @@ function BannerSlider({ banners }: { banners: Banner[] }): JSX.Element {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 1.01 }}
           transition={{ duration: 0.55 }}
-          className="h-[320px] w-full object-cover md:h-[440px]"
+          className="h-[220px] w-full object-cover sm:h-[280px] md:h-[440px]"
         />
       </AnimatePresence>
-      <div className="absolute inset-x-0 bottom-0 z-20 p-6 md:p-8">
-        <div className="max-w-2xl">
-          <h1 className="font-heading text-4xl font-semibold text-white md:text-5xl">
-            Fresh launches, trending packs, and curated essentials.
-          </h1>
-        </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 sm:p-5 md:p-8">
         {banners.length > 1 ? (
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex gap-2">
+          <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-3">
+            <div className="flex gap-2 rounded-full bg-[#102232]/35 px-3 py-2 backdrop-blur-md">
               {banners.map((banner, index) => (
                 <button
                   key={banner.id}
@@ -164,10 +159,18 @@ function BannerSlider({ banners }: { banners: Banner[] }): JSX.Element {
               ))}
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={goToPrevious} className="soft-button border-white/20 bg-white/10 text-white">
+              <button
+                type="button"
+                onClick={goToPrevious}
+                className="rounded-full border border-white/20 bg-[#102232]/35 px-3 py-2 text-xs font-semibold text-white backdrop-blur-md transition hover:bg-[#102232]/55 md:px-4"
+              >
                 Previous
               </button>
-              <button type="button" onClick={goToNext} className="soft-button border-white/20 bg-white/10 text-white">
+              <button
+                type="button"
+                onClick={goToNext}
+                className="rounded-full border border-white/20 bg-[#102232]/35 px-3 py-2 text-xs font-semibold text-white backdrop-blur-md transition hover:bg-[#102232]/55 md:px-4"
+              >
                 Next
               </button>
             </div>
