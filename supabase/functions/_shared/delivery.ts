@@ -679,9 +679,9 @@ export async function calculateRouteWithTomTom(
     }
 
     const payload = await response.json() as LocationIqDirectionsResponse;
-    const route = payload.routes?.[0];
-    const distanceMeters = Number(route?.distance ?? 0);
-    const durationSeconds = Number(route?.duration ?? 0);
+    const routeSummary = payload.routes?.[0];
+    const distanceMeters = Number(routeSummary?.distance ?? 0);
+    const durationSeconds = Number(routeSummary?.duration ?? 0);
 
     if (!Number.isFinite(distanceMeters) || distanceMeters < 0 || !Number.isFinite(durationSeconds) || durationSeconds < 0) {
       throw new HttpError(502, "Unable to calculate the delivery route right now.", { expose: false });
