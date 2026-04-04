@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-pnpm-lock.yaml
 yarn.lock
 package-lock.json
 
@@ -51,3 +50,7 @@ pnpm-debug.log*
 .codex/
 CLAUDE.md
 everything-claude-code/
+
+# Local env planning sheets
+env-public-github.local
+env-private-secrets.local

@@ -72,8 +72,12 @@ Make sure the following function secrets are available in Supabase:
 - `RAZORPAY_WEBHOOK_SECRET`
 - `TOMTOM_API_KEY`
 - `LOCATIONIQ_API_KEY` (optional alternative provider)
+- `UPSTASH_REDIS_REST_URL` (optional but recommended for function caching)
+- `UPSTASH_REDIS_REST_TOKEN` (optional but recommended for function caching)
 
 The Edge Functions now use only the private server-side map keys above. They no longer fall back to any public browser keys.
+
+If Upstash Redis secrets are present, delivery address search and external routing/geocoding calls are cached in the Edge Functions to reduce repeated provider requests.
 
 ## Browser-side TomTom map pinning
 
@@ -112,6 +116,7 @@ Before deploying:
    - `RAZORPAY_WEBHOOK_SECRET`
    - `TOMTOM_API_KEY`
    - `LOCATIONIQ_API_KEY`
+   - `UPSTASH_REDIS_REST_URL`
    - `RESEND_API_KEY`
    - `UPSTASH_REDIS_REST_TOKEN`
    - `CLOUDINARY_API_SECRET`

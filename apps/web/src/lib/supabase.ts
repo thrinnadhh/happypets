@@ -1423,7 +1423,7 @@ export async function uploadImageToSupabase(
   const uploadAsset = async (bucketName: string, folder: string): Promise<string> => {
     const path = buildStoragePath(folder, file);
     const { error } = await client.storage.from(bucketName).upload(path, file, {
-      cacheControl: "3600",
+      cacheControl: "31536000",
       contentType,
       upsert: false,
     });
@@ -1467,7 +1467,7 @@ export async function uploadBannerImageToSupabase(
   const uploadAsset = async (bucketName: string): Promise<string> => {
     const path = buildStoragePath("banners", file);
     const { error } = await client.storage.from(bucketName).upload(path, file, {
-      cacheControl: "3600",
+      cacheControl: "31536000",
       contentType,
       upsert: false,
     });

@@ -1,0 +1,27 @@
+# Public Environment Variables
+# Safe to commit as a template.
+# Safe to store in GitHub Actions / Vercel public env / local .env.local.
+# Do NOT put private secrets in this file.
+
+# Frontend app URL
+NEXT_PUBLIC_APP_URL=https://thehappypets.in
+
+# Supabase public client config
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_public_anon_key
+
+# Razorpay public checkout key
+NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxxxxx
+
+# Optional browser-only geocoding key for pin-to-address autofill
+# This is public if you use it here.
+VITE_TOMTOM_API_KEY=optional_browser_key
+# VITE_LOCATIONIQ_API_KEY=optional_browser_key
+
+# Optional public cloud config
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
+
+# Optional public feature flags
+NEXT_PUBLIC_ENABLE_ANALYTICS=true
+NEXT_PUBLIC_ENABLE_ERROR_TRACKING=true
+NEXT_PUBLIC_ENABLE_PAYMENT_TESTING=false

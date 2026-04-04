@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { HttpError } from "./cors.ts";
+import { buildCacheKey, getCachedJson, setCachedJson } from "./cache.ts";
 
 type DeliveryProductRow = {
   name?: string | null;
@@ -145,6 +146,9 @@ type LocationIqDirectionsResponse = {
     duration?: number;
   }>;
 };
+
+const ADDRESS_SEARCH_CACHE_TTL_SECONDS = 60 * 10;
+const ROUTE_CACHE_TTL_SECONDS = 60 * 10;
 
 function isMissingColumnError(issue: unknown, columns: string[]): boolean {
   if (!issue || typeof issue !== "object") {
@@ -396,10 +400,18 @@ export async function searchTomTomAddresses(
   query: string,
   options?: { limit?: number; typeahead?: boolean },
 ): Promise<TomTomAddressResult[]> {
+  const normalizedQuery = sanitizeAddressText(query, "Address query");
+  const limit = options?.limit ?? 5;
+  const typeahead = options?.typeahead ?? true;
+  const provider = useLocationIq() ? "locationiq" : "tomtom";
+  const cacheKey = buildCacheKey("delivery:search", [provider, normalizedQuery.toLowerCase(), limit, typeahead]);
+  const cachedResult = await getCachedJson<TomTomAddressResult[]>(cacheKey);
+  if (cachedResult?.length) {
+    return cachedResult;
+  }
+
   if (useLocationIq()) {
-    const normalizedQuery = sanitizeAddressText(query, "Address query");
     const key = getLocationIqApiKey();
-    const limit = options?.limit ?? 5;
     const endpoint = options?.typeahead === false ? "search" : "autocomplete";
     const url = new URL(`https://us1.locationiq.com/v1/${endpoint}`);
     url.searchParams.set("key", key);
@@ -418,7 +430,7 @@ export async function searchTomTomAddresses(
     const payload = await response.json() as LocationIqAddressResult[] | { error?: string };
     const results = Array.isArray(payload) ? payload : [];
 
-    return results.flatMap((result) => {
+    const mapped = results.flatMap((result) => {
       const address = result.display_name?.trim() ?? "";
       const latitude = Number(result.lat);
       const longitude = Number(result.lon);
@@ -448,12 +460,12 @@ export async function searchTomTomAddresses(
         longitude,
       }];
     });
+
+    await setCachedJson(cacheKey, mapped, ADDRESS_SEARCH_CACHE_TTL_SECONDS);
+    return mapped;
   }
 
-  const normalizedQuery = sanitizeAddressText(query, "Address query");
   const key = getTomTomApiKey();
-  const limit = options?.limit ?? 5;
-  const typeahead = options?.typeahead ?? true;
   const url = new URL(`https://api.tomtom.com/search/2/search/${encodeURIComponent(normalizedQuery)}.json`);
   url.searchParams.set("key", key);
   url.searchParams.set("limit", String(limit));
@@ -469,7 +481,7 @@ export async function searchTomTomAddresses(
   const payload = await response.json() as TomTomSearchApiResponse;
   const results = Array.isArray(payload.results) ? payload.results : [];
 
-  return results.flatMap((result) => {
+  const mapped = results.flatMap((result) => {
     const address = result.address?.freeformAddress?.trim() ?? "";
     const latitude = result.position?.lat;
     const longitude = result.position?.lon;
@@ -496,6 +508,9 @@ export async function searchTomTomAddresses(
       },
     ];
   });
+
+  await setCachedJson(cacheKey, mapped, ADDRESS_SEARCH_CACHE_TTL_SECONDS);
+  return mapped;
 }
 
 export async function geocodeAddressWithTomTom(address: string): Promise<TomTomAddressResult> {
@@ -515,6 +530,19 @@ export async function calculateRouteWithTomTom(
   destinationLat: number,
   destinationLng: number,
 ): Promise<{ distanceMeters: number; durationSeconds: number }> {
+  const provider = useLocationIq() ? "locationiq" : "tomtom";
+  const cacheKey = buildCacheKey("delivery:route", [
+    provider,
+    originLat.toFixed(6),
+    originLng.toFixed(6),
+    destinationLat.toFixed(6),
+    destinationLng.toFixed(6),
+  ]);
+  const cachedRoute = await getCachedJson<{ distanceMeters: number; durationSeconds: number }>(cacheKey);
+  if (cachedRoute) {
+    return cachedRoute;
+  }
+
   if (useLocationIq()) {
     const key = getLocationIqApiKey();
     const url = new URL(
@@ -539,7 +567,9 @@ export async function calculateRouteWithTomTom(
       throw new HttpError(502, "Unable to calculate the delivery route right now.", { expose: false });
     }
 
-    return { distanceMeters, durationSeconds };
+    const route = { distanceMeters, durationSeconds };
+    await setCachedJson(cacheKey, route, ROUTE_CACHE_TTL_SECONDS);
+    return route;
   }
 
   const key = getTomTomApiKey();
@@ -565,7 +595,9 @@ export async function calculateRouteWithTomTom(
     throw new HttpError(502, "Unable to calculate the delivery route right now.", { expose: false });
   }
 
-  return { distanceMeters, durationSeconds };
+  const route = { distanceMeters, durationSeconds };
+  await setCachedJson(cacheKey, route, ROUTE_CACHE_TTL_SECONDS);
+  return route;
 }
 
 export function calculateDeliveryFeeInr(config: ShopDeliveryConfig, distanceMeters: number): number {
