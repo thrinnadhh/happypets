@@ -3,11 +3,20 @@ import { DisplaySection, Product, ProductCategory, ProductTag } from "@/types";
 export const productCategories: ProductCategory[] = [
   "Dog",
   "Cat",
+  "Rabbit",
   "Fish",
   "Hamster",
-  "Rabbit",
   "Birds",
 ];
+
+export const categoryLabels: Record<ProductCategory, string> = {
+  Dog: "Dog",
+  Cat: "Cat",
+  Rabbit: "Ropes, Belts and Combos",
+  Fish: "Fish",
+  Hamster: "Hamster",
+  Birds: "Birds",
+};
 
 export const categoryLifeStages: Partial<Record<ProductCategory, string[]>> = {
   Dog: ["Adult", "Puppy"],
@@ -22,7 +31,7 @@ export const displaySectionLabels: Record<DisplaySection, string> = {
   Cat: "Cat Products",
   Fish: "Fish Products",
   Hamster: "Hamster Products",
-  Rabbit: "Rabbit Products",
+  Rabbit: "Ropes, Belts and Combos",
   Birds: "Bird Products",
 };
 
@@ -54,7 +63,7 @@ export const categoryCopy: Record<ProductCategory, string> = {
   Cat: "Indoor nutrition, coat care, and premium formulas for selective feline routines.",
   Fish: "Balanced feed, clean-water support, and aquarium staples that keep tanks healthy.",
   Hamster: "Compact nutrition, bedding-friendly treats, and soft care for curious little pets.",
-  Rabbit: "Gentle digestion blends, hay-friendly nutrition, and calm daily feeding support.",
+  Rabbit: "Play-ready ropes, sturdy belts, and curated combo picks for everyday use.",
   Birds: "Seed blends, plumage support, and light daily nutrition for vibrant aviary care.",
 };
 
@@ -66,6 +75,10 @@ export function getDefaultDisplaySection(category: ProductCategory): DisplaySect
 
 export function getCategoryPath(category: ProductCategory): string {
   return `/category/${categorySlugs[category]}`;
+}
+
+export function getCategoryLabel(category: ProductCategory): string {
+  return categoryLabels[category];
 }
 
 export function getCategoryFromSlug(slug?: string): ProductCategory | null {

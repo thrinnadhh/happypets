@@ -4,6 +4,7 @@ import {
   categoryLifeStages,
   displaySectionLabels,
   displaySections,
+  getCategoryLabel,
   productCategories,
   productTagLabels,
   productTags,
@@ -368,7 +369,9 @@ export function ProductFormModal({
                   className="input"
                 >
                   {productCategories.map((category) => (
-                    <option key={category}>{category}</option>
+                    <option key={category} value={category}>
+                      {getCategoryLabel(category)}
+                    </option>
                   ))}
                 </select>
               </label>

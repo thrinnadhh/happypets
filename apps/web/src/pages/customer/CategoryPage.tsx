@@ -9,6 +9,7 @@ import { useCatalog } from "@/contexts/CatalogContext";
 import {
   categoryLifeStages,
   categoryCopy,
+  getCategoryLabel,
   getCategoryFromSlug,
   getCategoryPath,
   normalizeLifeStage,
@@ -98,7 +99,7 @@ export function CategoryPage(): JSX.Element {
           >
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#f4df9d]">Category</p>
             <h1 className="mt-4 font-heading text-5xl font-semibold tracking-[-0.04em] md:text-6xl">
-              {category} Products
+              {getCategoryLabel(category)}
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-8 text-white/78">{categoryCopy[category]}</p>
 
@@ -217,7 +218,9 @@ export function CategoryPage(): JSX.Element {
         <section className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="font-heading text-4xl font-semibold text-ink">Browse the full {category.toLowerCase()} shelf</h2>
+              <h2 className="font-heading text-4xl font-semibold text-ink">
+                Browse the full {getCategoryLabel(category).toLowerCase()} shelf
+              </h2>
               <p className="mt-3 text-sm leading-7 text-slate-600">
                 Filter by brand or tag, then open any product for details, favorites, and related picks.
               </p>

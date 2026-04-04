@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { ProductCard } from "@/components/products/ProductCard";
 import { useCatalog } from "@/contexts/CatalogContext";
 import {
+  getCategoryLabel,
   getCategoryPath,
   productCategories,
   sortProductsByPosition,
@@ -69,11 +70,11 @@ function CategoryRail({
 }): JSX.Element {
   return (
     <ProductRail
-      title={category}
+      title={getCategoryLabel(category)}
       products={products}
       cta={
         <Link to={getCategoryPath(category)} className="soft-button">
-          View all {category.toLowerCase()}
+          View all {getCategoryLabel(category).toLowerCase()}
         </Link>
       }
     />

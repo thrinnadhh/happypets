@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCatalog } from "@/contexts/CatalogContext";
 
 const isDevelopment = import.meta.env.DEV;
-import { getCategoryPath, productTagLabels, productTagStyles, sortTags } from "@/data/catalog";
+import { getCategoryLabel, getCategoryPath, productTagLabels, productTagStyles, sortTags } from "@/data/catalog";
 import { calculateDiscountedPrice, formatInr, isProductExpired } from "@/lib/commerce";
 
 export function ProductDetailPage(): JSX.Element {
@@ -102,7 +102,7 @@ export function ProductDetailPage(): JSX.Element {
           <div className="flex flex-col gap-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-700">{product.category}</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-700">{getCategoryLabel(product.category)}</p>
                 <h1 className="mt-3 font-heading text-5xl font-semibold leading-none text-ink">{product.name}</h1>
                 <p className="mt-3 text-sm uppercase tracking-[0.16em] text-slate-500">{product.brand}</p>
                 {product.lifeStage ? (
@@ -262,7 +262,7 @@ export function ProductDetailPage(): JSX.Element {
               Continue Shopping
             </Link>
             <Link to={getCategoryPath(product.category)} className="soft-button">
-              View {product.category}
+              View {getCategoryLabel(product.category)}
             </Link>
           </div>
 

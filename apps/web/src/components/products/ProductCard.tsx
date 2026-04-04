@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { FavoriteButton } from "@/components/products/FavoriteButton";
 import { StarIcon } from "@/components/common/Icons";
-import { productTagLabels, productTagStyles, sortTags } from "@/data/catalog";
+import { getCategoryLabel, productTagLabels, productTagStyles, sortTags } from "@/data/catalog";
 import { calculateDiscountedPrice, formatInr, isProductExpired } from "@/lib/commerce";
 import { Product } from "@/types";
 
@@ -74,8 +74,8 @@ export function ProductCard({ product }: { product: Product }): JSX.Element {
                 </span>
               ) : null}
               <span className="rounded-full bg-[#f6efe3] px-2.5 py-1 text-[10px] font-medium text-slate-600 md:px-3 md:text-xs">
-                {product.category}
-              </span>
+                  {getCategoryLabel(product.category)}
+                </span>
             </div>
           </div>
 

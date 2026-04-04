@@ -8,7 +8,7 @@ import { ProductFormModal } from "@/components/products/ProductFormModal";
 import { DataTable } from "@/components/tables/DataTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCatalog } from "@/contexts/CatalogContext";
-import { displaySectionLabels, productTagLabels, sortProductsByPosition } from "@/data/catalog";
+import { displaySectionLabels, getCategoryLabel, productTagLabels, sortProductsByPosition } from "@/data/catalog";
 import { formatInr } from "@/lib/commerce";
 import { fetchSelectableShopsFromSupabase } from "@/lib/supabase";
 import { adminLinks } from "@/pages/admin/navigation";
@@ -131,7 +131,7 @@ export function AdminProductsPage(): JSX.Element {
                     {
                       key: "category",
                       title: "Category",
-                      render: (product) => product.category,
+                      render: (product) => getCategoryLabel(product.category),
                     },
                     {
                       key: "lifeStage",

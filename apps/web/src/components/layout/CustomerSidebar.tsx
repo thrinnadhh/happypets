@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { NavLink, useNavigate } from "react-router-dom";
-import { getCategoryPath, productCategories } from "@/data/catalog";
+import { getCategoryLabel, getCategoryPath, productCategories } from "@/data/catalog";
 import { CloseIcon } from "@/components/common/Icons";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -91,7 +91,7 @@ export function CustomerSidebar({
                     }`
                   }
                 >
-                  <p className="text-sm font-semibold text-ink">{category}</p>
+                  <p className="text-sm font-semibold text-ink">{getCategoryLabel(category)}</p>
                 </NavLink>
               ))}
             </div>
