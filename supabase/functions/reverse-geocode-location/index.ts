@@ -6,7 +6,7 @@ import {
   HttpError,
   logInternalError,
 } from "../_shared/cors.ts";
-import { getAuthenticatedUserFromRequest } from "../_shared/auth.ts";
+import { getVerifiedAuthenticatedUserFromRequest } from "../_shared/auth.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 import { reverseGeocodeCoordinates, sanitizeOptionalCoordinate } from "../_shared/delivery.ts";
 
@@ -40,7 +40,7 @@ serve(async (request) => {
     assertAllowedOrigin(request);
     assertPostRequest(request);
 
-    const user = getAuthenticatedUserFromRequest(request);
+    const user = await getVerifiedAuthenticatedUserFromRequest(request);
     const body = await request.json().catch(() => {
       throw new HttpError(400, "Invalid request body.");
     }) as { lat?: unknown; lng?: unknown };
