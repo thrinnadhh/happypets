@@ -44,3 +44,10 @@ pnpm-debug.log*
 
 # Secrets
 .env.*.gpg
+
+# AI assistant / local tooling noise
+.agent/
+.claude/
+.codex/
+CLAUDE.md
+everything-claude-code/

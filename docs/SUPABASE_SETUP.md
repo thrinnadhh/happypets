@@ -9,6 +9,12 @@ The Vite app now supports both of these variable styles:
 
 Because `apps/web` is nested, Vite is configured to read `.env.local` from the repo root.
 
+Important security rule:
+
+- Anything prefixed with `VITE_` is public in the browser.
+- In this repo, anything prefixed with `NEXT_PUBLIC_` is also public in the browser.
+- Never put secrets in either prefix.
+
 ## Run the repo-side migrations
 
 Apply these Supabase SQL files in order:
@@ -67,6 +73,8 @@ Make sure the following function secrets are available in Supabase:
 - `TOMTOM_API_KEY`
 - `LOCATIONIQ_API_KEY` (optional alternative provider)
 
+The Edge Functions now use only the private server-side map keys above. They no longer fall back to any public browser keys.
+
 ## Browser-side TomTom map pinning
 
 The admin delivery settings page and the customer checkout page now support map pin selection.
@@ -88,3 +96,26 @@ The server-side delivery quote and route pricing still use the Supabase Edge Fun
 
 - `TOMTOM_API_KEY`
 - `LOCATIONIQ_API_KEY` (if you want LocationIQ to be preferred instead)
+
+## Deployment Security Checklist
+
+Before deploying:
+
+1. Keep these public only:
+   - `VITE_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `VITE_RAZORPAY_KEY_ID` / `NEXT_PUBLIC_RAZORPAY_KEY_ID`
+   - optional browser geocoding key such as `VITE_TOMTOM_API_KEY`
+2. Keep these server-only:
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `RAZORPAY_KEY_SECRET`
+   - `RAZORPAY_WEBHOOK_SECRET`
+   - `TOMTOM_API_KEY`
+   - `LOCATIONIQ_API_KEY`
+   - `RESEND_API_KEY`
+   - `UPSTASH_REDIS_REST_TOKEN`
+   - `CLOUDINARY_API_SECRET`
+3. Add all private values only in deployment secrets, never in browser env prefixes.
+4. Restrict browser-visible API keys by domain/referrer in the provider dashboard whenever the provider supports it.
+5. Rotate any private key immediately if it was ever committed, pasted into chat, or shared publicly.
+6. Re-check Supabase RLS policies before production, because the anon key is safe only when policies are correct.

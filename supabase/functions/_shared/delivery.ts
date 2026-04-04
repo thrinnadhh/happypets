@@ -376,7 +376,7 @@ export async function fetchShopDeliveryConfig(
 }
 
 function getTomTomApiKey(): string {
-  const key = Deno.env.get("TOMTOM_API_KEY") ?? Deno.env.get("NEXT_PUBLIC_TOMTOM_API_KEY") ?? "";
+  const key = Deno.env.get("TOMTOM_API_KEY") ?? "";
   if (!key.trim()) {
     throw new HttpError(500, "Map services are temporarily unavailable.", { expose: false });
   }
@@ -385,7 +385,7 @@ function getTomTomApiKey(): string {
 }
 
 function getLocationIqApiKey(): string {
-  return (Deno.env.get("LOCATIONIQ_API_KEY") ?? Deno.env.get("NEXT_PUBLIC_LOCATIONIQ_API_KEY") ?? "").trim();
+  return (Deno.env.get("LOCATIONIQ_API_KEY") ?? "").trim();
 }
 
 function useLocationIq(): boolean {
