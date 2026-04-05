@@ -31,29 +31,33 @@ function ProductRail({
       initial={{ opacity: 0, y: 18 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-120px" }}
-      className="rounded-[28px] border border-white/60 bg-white/78 p-4 shadow-card backdrop-blur-sm sm:p-5 md:rounded-[34px] md:p-8"
+      className="w-full space-y-4"
     >
-      <div className="flex flex-col gap-3 border-b border-[#eee2cf] pb-4 md:flex-row md:items-end md:justify-between md:gap-4 md:pb-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-heading text-3xl font-semibold text-ink md:text-4xl">{title}</h2>
-          {description ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:mt-3 md:leading-7">{description}</p> : null}
+          <h2 className="font-heading text-2xl font-bold text-ink sm:text-3xl">{title}</h2>
+          {description ? (
+            <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">
+              {description}
+            </p>
+          ) : null}
         </div>
-        {cta}
+        {cta && <div className="hidden sm:block">{cta}</div>}
       </div>
 
       {products.length ? (
-        <div className="mt-5 flex snap-x gap-3 overflow-x-auto pb-2 sm:gap-4 md:mt-6 md:gap-5">
+        <div className="flex snap-x gap-3 overflow-x-auto pb-2 sm:gap-4">
           {products.map((product) => (
             <div
               key={product.id}
-              className="min-w-[224px] max-w-[224px] snap-start sm:min-w-[252px] sm:max-w-[252px] md:min-w-[280px] md:max-w-[280px] lg:min-w-[300px] lg:max-w-[300px]"
+              className="min-w-[160px] max-w-[160px] snap-start sm:min-w-[200px] sm:max-w-[200px] md:min-w-[240px] md:max-w-[240px] lg:min-w-[280px] lg:max-w-[280px]"
             >
               <ProductCard product={product} />
             </div>
           ))}
         </div>
       ) : (
-        <div className="mt-6 rounded-[28px] border border-dashed border-[#e8dcc9] bg-[#fbf7ef] px-6 py-10 text-center text-sm text-slate-500">
+        <div className="rounded-[16px] border-2 border-dashed border-pet-teal bg-blue-50 px-4 py-8 text-center text-sm text-slate-600 sm:px-6 sm:py-10">
           This section will fill automatically when matching products are available.
         </div>
       )}
@@ -108,21 +112,28 @@ function BannerSlider({ banners }: { banners: Banner[] }): JSX.Element {
 
   if (!banners.length) {
     return (
-      <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] shadow-[0_28px_60px_rgba(251,191,36,0.28)] md:rounded-[34px]">
-        <div className="relative flex h-[280px] items-center justify-center px-6 sm:h-[340px] md:h-[420px]">
-          <div className="text-center">
-            <h1 className="font-heading text-4xl font-bold text-white sm:text-5xl md:text-6xl">
+      <section className="relative overflow-hidden rounded-[20px] bg-pet-yellow sm:rounded-[28px]">
+        <div className="relative flex min-h-[280px] flex-col items-center justify-center px-4 py-8 sm:min-h-[340px] sm:py-10 md:min-h-[420px] md:px-8 md:py-12">
+          <div className="w-full space-y-4 text-center">
+            <div className="inline-block rounded-full bg-white px-3 py-1 text-xs font-bold text-pet-orange sm:px-4 sm:text-sm">
+              🎾 NEW ARRIVALS
+            </div>
+            <h1 className="font-heading text-3xl font-bold text-ink sm:text-4xl md:text-5xl leading-tight">
               Playtime Just Got
-              <span className="block text-[#ff1744]">Bouncier!</span>
+              <br />
+              <span className="text-pet-orange">Bouncier!</span>
             </h1>
-            <p className="mt-4 text-lg text-white/90">
-              Discover the most squeaky, durable, and fun toys for your furry best friends.
+            <p className="mx-auto max-w-md text-sm text-ink/80 sm:text-base">
+              Discover the most squeaky, durable, and fun toys for your furry best friends. Guaranteed tail wags!
             </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <Link to="/category/Dog" className="rounded-full bg-[#ff6b35] px-8 py-3 font-semibold text-white transition hover:bg-[#ff5520]">
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-center sm:gap-4">
+              <Link
+                to="/category/Dog"
+                className="orange-button px-6 py-3 sm:px-8 sm:py-3"
+              >
                 Shop Collection
               </Link>
-              <button className="rounded-full border-2 border-white bg-transparent px-8 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button className="rounded-full border-2 border-ink bg-transparent px-6 py-3 font-semibold text-ink transition hover:bg-black/5 sm:px-8">
                 See Trends
               </button>
             </div>
@@ -142,7 +153,7 @@ function BannerSlider({ banners }: { banners: Banner[] }): JSX.Element {
 
   return (
     <section
-      className="relative overflow-hidden rounded-[28px] shadow-[0_28px_60px_rgba(23,50,74,0.22)] md:rounded-[34px]"
+      className="relative overflow-hidden rounded-[28px] shadow-[0_28px_60px_rgba(251,191,36,0.22)] md:rounded-[34px] ring-4 ring-[#fbbf24]/30"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -242,9 +253,9 @@ export function CustomerHomePage(): JSX.Element {
   );
 
   return (
-    <PageTransition className="min-h-screen bg-soft-grid">
+    <PageTransition className="min-h-screen bg-pet-cream">
       <Navbar />
-      <main className="mx-auto flex max-w-[1500px] flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
+      <main className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-4 sm:gap-8 sm:py-6 md:px-6 md:py-8">
         <BannerSlider banners={sortedBanners} />
 
         {loading ? (

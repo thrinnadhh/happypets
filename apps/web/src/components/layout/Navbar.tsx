@@ -55,7 +55,7 @@ export function Navbar(): JSX.Element {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : -120 }}
         transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-        className="sticky top-0 z-20 border-b border-white/50 bg-[#f8f1e6]/88 backdrop-blur-xl"
+        className="sticky top-0 z-20 border-b border-pet-yellow/30 bg-pet-cream/90 backdrop-blur-xl"
       >
         <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-4 md:px-6 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center justify-between gap-3">
@@ -94,7 +94,7 @@ export function Navbar(): JSX.Element {
           </div>
 
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:gap-6">
-            <nav className="hidden flex-wrap items-center gap-2 rounded-full bg-white/78 p-1 shadow-soft xl:flex">
+            <nav className="hidden flex-wrap items-center gap-2 rounded-full bg-white/70 p-1 shadow-soft xl:flex">
               {links.map((link) => (
                 <NavLink
                   key={link.to}
@@ -102,8 +102,8 @@ export function Navbar(): JSX.Element {
                   className={({ isActive }) =>
                     `rounded-full px-4 py-2 text-sm font-medium transition ${
                       isActive
-                        ? "bg-[#2f4f6f] text-white shadow-[0_14px_26px_rgba(47,79,111,0.18)]"
-                        : "text-slate-600 hover:bg-[#f7f0e3] hover:text-ink"
+                        ? "bg-pet-teal text-white shadow-[0_14px_26px_rgba(32,178,170,0.18)]"
+                        : "text-slate-600 hover:bg-pet-yellow/20 hover:text-ink"
                     }`
                   }
                 >

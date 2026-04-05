@@ -1,0 +1,30 @@
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - generic [ref=e7]: Role-based access
+    - heading "Premium pet operations for customers, admins, and super admins." [level=1] [ref=e8]
+    - paragraph [ref=e9]: Supabase Auth now powers identity for customers and admins. Profiles and approvals come from the database, so each workspace unlocks from real role data instead of mock emails.
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - paragraph [ref=e12]: Customer
+        - paragraph [ref=e13]: Shoppers can browse, save favorites, and manage personal activity.
+      - generic [ref=e14]:
+        - paragraph [ref=e15]: Admin
+        - paragraph [ref=e16]: Admins can request access and manage products once a superadmin approves them.
+      - generic [ref=e17]:
+        - paragraph [ref=e18]: Super Admin
+        - paragraph [ref=e19]: A manually promoted account can approve admins and monitor platform analytics.
+  - generic [ref=e20]:
+    - generic [ref=e21]:
+      - button "Sign in" [ref=e22] [cursor=pointer]
+      - button "Create account" [ref=e23] [cursor=pointer]
+    - paragraph [ref=e24]: Single Login
+    - heading "Access your workspace" [level=2] [ref=e25]
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - generic [ref=e28]: Email
+        - textbox "Email" [ref=e29]
+      - generic [ref=e30]:
+        - generic [ref=e31]: Password
+        - textbox "Password" [ref=e32]
+      - button "Login" [ref=e33] [cursor=pointer]
+    - generic [ref=e34]: Admin signups are created as pending requests. To create the first superadmin, sign up normally and then promote that profile with the SQL in the Supabase setup docs.

@@ -13,10 +13,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_public_anon_key
 # Razorpay public checkout key
 NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxxxxx
 
-# Optional browser-only geocoding key for pin-to-address autofill
-# This is public if you use it here.
-VITE_TOMTOM_API_KEY=optional_browser_key
-# VITE_LOCATIONIQ_API_KEY=optional_browser_key
+
 
 # Optional public cloud config
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name

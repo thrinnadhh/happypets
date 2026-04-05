@@ -118,6 +118,27 @@
     border-color: rgba(212, 175, 55, 0.14);
     box-shadow: 0 16px 38px rgba(78, 58, 31, 0.06);
   }
+
+  /* New pet design system buttons */
+  .teal-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-pet-teal px-6 py-3 text-sm font-semibold text-white transition duration-200 hover:bg-[#1a8f8d] active:scale-95;
+  }
+
+  .yellow-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-pet-yellow px-6 py-3 text-sm font-semibold text-ink transition duration-200 hover:bg-[#f0ad1a] active:scale-95;
+  }
+
+  .orange-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-pet-orange px-6 py-3 text-sm font-semibold text-white transition duration-200 hover:bg-[#ff5520] active:scale-95;
+  }
+
+  .pet-card {
+    @apply rounded-[20px] border-2 border-pet-teal bg-white p-4 transition;
+  }
+
+  .pet-header {
+    @apply bg-pet-yellow py-4 text-center font-heading text-2xl font-bold text-ink sm:text-3xl;
+  }
 }
 
 @layer utilities {

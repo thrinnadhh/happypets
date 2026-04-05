@@ -54,3 +54,4 @@ everything-claude-code/
 # Local env planning sheets
 env-public-github.local
 env-private-secrets.local
+.vercel

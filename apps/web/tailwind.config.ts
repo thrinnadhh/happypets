@@ -22,6 +22,11 @@ const config: Config = {
         navy: "#2F4F6F",
         sand: "#F5EFE6",
         parchment: "#EDE3D3",
+        "pet-yellow": "#fbbf24",
+        "pet-teal": "#20b2aa",
+        "pet-orange": "#ff6b35",
+        "pet-green": "#2d6050",
+        "pet-cream": "#faf7f0",
       },
       boxShadow: {
         soft: "0 18px 45px rgba(78, 58, 31, 0.08)",
