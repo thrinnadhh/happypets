@@ -1,0 +1,17 @@
+[functions.create-razorpay-order]
+verify_jwt = false
+
+[functions.verify-razorpay-payment]
+verify_jwt = false
+
+[functions.razorpay-webhook]
+verify_jwt = false
+
+[functions.auto-cancel-orders]
+verify_jwt = true
+
+[functions.quote-delivery]
+verify_jwt = false
+
+[functions.search-delivery-addresses]
+verify_jwt = false

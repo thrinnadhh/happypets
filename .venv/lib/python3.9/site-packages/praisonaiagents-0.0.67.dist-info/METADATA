@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: praisonaiagents
+Version: 0.0.67
+Summary: Praison AI agents for completing complex tasks with Self Reflection Agents
+Author: Mervin Praison
+Requires-Dist: pydantic
+Requires-Dist: rich
+Requires-Dist: openai
+Provides-Extra: memory
+Requires-Dist: chromadb>=0.5.23; extra == "memory"
+Provides-Extra: knowledge
+Requires-Dist: mem0ai>=0.1.0; extra == "knowledge"
+Requires-Dist: chromadb==0.5.23; extra == "knowledge"
+Requires-Dist: markitdown; extra == "knowledge"
+Requires-Dist: chonkie; extra == "knowledge"
+Provides-Extra: llm
+Requires-Dist: litellm>=1.50.0; extra == "llm"
+Requires-Dist: pydantic>=2.4.2; extra == "llm"
+Provides-Extra: all
+Requires-Dist: praisonaiagents[memory]; extra == "all"
+Requires-Dist: praisonaiagents[knowledge]; extra == "all"
+Requires-Dist: praisonaiagents[llm]; extra == "all"
