@@ -2,6 +2,7 @@ import { createContext, startTransition, useContext, useEffect, useMemo, useStat
 import {
   DEFAULT_PRODUCT_POSITION,
   getDefaultDisplaySection,
+  normalizeProductType,
   normalizeLifeStage,
   sortProductsByPosition,
   sortTags,
@@ -36,6 +37,10 @@ function normalizeProduct(product: Product): Product {
       product.category,
       product.lifeStage ?? "",
       `${product.name} ${product.description ?? ""}`,
+    ),
+    productType: normalizeProductType(
+      product.productType,
+      `${product.name} ${product.description ?? ""} ${product.weight ?? ""}`,
     ),
     displaySection: product.displaySection ?? getDefaultDisplaySection(product.category),
     position:
@@ -110,9 +115,11 @@ export function CatalogProvider({ children }: { children: React.ReactNode }): JS
     const base = getProductById(productId);
     if (!base) return [];
 
-    return sortProductsByPosition(
-      products.filter((product) => product.category === base.category && product.id !== productId),
-    ).slice(0, 8);
+    const sameCategoryProducts = products.filter((product) => product.category === base.category && product.id !== productId);
+    const otherTypes = sameCategoryProducts.filter((product) => product.productType !== base.productType);
+    const sameTypeFallback = sameCategoryProducts.filter((product) => product.productType === base.productType);
+
+    return [...sortProductsByPosition(otherTypes), ...sortProductsByPosition(sameTypeFallback)].slice(0, 8);
   };
 
   const value = useMemo(

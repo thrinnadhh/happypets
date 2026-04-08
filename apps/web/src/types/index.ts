@@ -1,6 +1,13 @@
 export type Role = "customer" | "admin" | "superadmin";
 
 export type ProductCategory = "Dog" | "Cat" | "Fish" | "Hamster" | "Rabbit" | "Birds";
+export type ProductTypeOption =
+  | "Dry Food"
+  | "Wet Food (Gravies)"
+  | "Biscuits"
+  | "Jerkys"
+  | "Calcium Bones"
+  | "Others";
 
 export type DisplaySection = "Home" | ProductCategory;
 
@@ -35,6 +42,7 @@ export type Product = {
   shopId?: string;
   name: string;
   category: ProductCategory;
+  productType: string;
   lifeStage?: string;
   displaySection: DisplaySection;
   position: number;

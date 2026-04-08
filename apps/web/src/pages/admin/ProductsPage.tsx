@@ -139,6 +139,11 @@ export function AdminProductsPage(): JSX.Element {
                       render: (product) => product.lifeStage || "—",
                     },
                     {
+                      key: "productType",
+                      title: "Product Type",
+                      render: (product) => product.productType,
+                    },
+                    {
                       key: "displaySection",
                       title: "Display Section",
                       render: (product) =>

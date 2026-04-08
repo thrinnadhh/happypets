@@ -3,6 +3,7 @@ import {
   DEFAULT_PRODUCT_POSITION,
   getCategoryFromSlug,
   getDefaultDisplaySection,
+  normalizeProductType,
   normalizeLifeStage,
   productCategories,
   sortTags,
@@ -80,6 +81,7 @@ type SupabaseProductRow = {
   id: string;
   shop_id: string;
   name: string;
+  product_type?: string | null;
   life_stage?: string | null;
   description: string | null;
   created_at?: string | null;
@@ -261,6 +263,7 @@ const PRODUCT_SELECT = `
   id,
   shop_id,
   name,
+  product_type,
   life_stage,
   description,
   created_at,
@@ -312,6 +315,7 @@ const ENHANCED_PRODUCT_SELECT = `
   id,
   shop_id,
   name,
+  product_type,
   description,
   created_at,
   price_inr,
@@ -511,6 +515,10 @@ function mapRowToProduct(row: SupabaseProductRow): Product {
   const category = normalizeCategory(row.category);
   const images = row.images?.length ? row.images : [];
   const primaryImage = images[0] ?? "";
+  const productType = normalizeProductType(
+    row.product_type ?? undefined,
+    `${row.name} ${row.description ?? ""} ${row.weight ?? ""}`,
+  );
   const derivedLifeStage = normalizeLifeStage(
     category,
     row.life_stage ?? "",
@@ -522,6 +530,7 @@ function mapRowToProduct(row: SupabaseProductRow): Product {
     shopId: row.shop_id,
     name: row.name,
     category,
+    productType,
     lifeStage: derivedLifeStage,
     displaySection: row.display_section ?? getDefaultDisplaySection(category),
     position: row.position ?? DEFAULT_PRODUCT_POSITION,
@@ -855,6 +864,10 @@ function validateProductInput(product: Omit<Product, "id" | "soldCount" | "reven
     throw new Error("Packet count must be at least 1.");
   }
 
+  if (!product.productType.trim()) {
+    throw new Error("Product type is required.");
+  }
+
   if (!product.shopInventories?.length) {
     throw new Error("Select at least one fulfillment shop.");
   }
@@ -1008,7 +1021,7 @@ function isMissingProductEnhancementColumnError(issue: unknown): boolean {
   }
 
   const message = "message" in issue && typeof issue.message === "string" ? issue.message.toLowerCase() : "";
-  return ["weight", "packet_count", "is_sample", "life_stage"].some((column) => message.includes(column));
+  return ["weight", "packet_count", "is_sample", "life_stage", "product_type"].some((column) => message.includes(column));
 }
 
 function isMissingCartEnhancementColumnError(issue: unknown): boolean {
@@ -1709,6 +1722,7 @@ export async function createProductInSupabase(
 
   const enhancedPayload = {
     ...legacyPayload,
+    product_type: product.productType.trim(),
     weight: product.weight,
     packet_count: product.packetCount,
     is_sample: product.isSample,
@@ -1832,6 +1846,7 @@ export async function updateProductInSupabase(
 
   const enhancedPayload = {
     ...legacyPayload,
+    product_type: product.productType.trim(),
     weight: product.weight,
     packet_count: product.packetCount,
     is_sample: product.isSample,

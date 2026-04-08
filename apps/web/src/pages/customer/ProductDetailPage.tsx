@@ -105,6 +105,9 @@ export function ProductDetailPage(): JSX.Element {
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-700">{getCategoryLabel(product.category)}</p>
                 <h1 className="mt-3 font-heading text-5xl font-semibold leading-none text-ink">{product.name}</h1>
                 <p className="mt-3 text-sm uppercase tracking-[0.16em] text-slate-500">{product.brand}</p>
+                <span className="mt-4 inline-flex rounded-full bg-[#f8efe4] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#7a5a31]">
+                  {product.productType}
+                </span>
                 {product.lifeStage ? (
                   <span className="mt-4 inline-flex rounded-full bg-[#eef4fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#2f4f6f]">
                     {product.lifeStage}
@@ -255,11 +258,8 @@ export function ProductDetailPage(): JSX.Element {
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-700">Related Products</p>
-              <h2 className="mt-2 font-heading text-4xl font-semibold text-ink">More from the same category</h2>
+              <h2 className="mt-2 font-heading text-4xl font-semibold text-ink">More {getCategoryLabel(product.category)} picks across other types</h2>
             </div>
-            <Link to="/customer/home" className="soft-button">
-              Continue Shopping
-            </Link>
             <Link to={getCategoryPath(product.category)} className="soft-button">
               View {getCategoryLabel(product.category)}
             </Link>

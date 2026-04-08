@@ -5,10 +5,12 @@ import {
   displaySectionLabels,
   displaySections,
   getCategoryLabel,
+  normalizeProductType,
   productCategories,
   productTagLabels,
   productTags,
   productTagStyles,
+  presetProductTypes,
   sortTags,
 } from "@/data/catalog";
 import { categoryBrands } from "@/data/mockData";
@@ -18,10 +20,12 @@ import { uploadImageToSupabase } from "@/lib/supabase";
 
 type ProductFormInput = Omit<Product, "id" | "soldCount" | "revenue">;
 const OTHER_BRAND_VALUE = "__other__";
+const OTHER_PRODUCT_TYPE_VALUE = "__other_product_type__";
 
 const emptyForm: ProductFormInput = {
   name: "",
   category: "Dog",
+  productType: "Dry Food",
   lifeStage: "Adult",
   displaySection: "Dog",
   position: 1,
@@ -44,11 +48,15 @@ const emptyForm: ProductFormInput = {
 
 function validateProductForm(
   form: ProductFormInput,
-): Partial<Record<"brand" | "price" | "quantity" | "discount" | "packetCount" | "dates" | "shops", string>> {
-  const errors: Partial<Record<"brand" | "price" | "quantity" | "discount" | "packetCount" | "dates" | "shops", string>> = {};
+): Partial<Record<"brand" | "productType" | "price" | "quantity" | "discount" | "packetCount" | "dates" | "shops", string>> {
+  const errors: Partial<Record<"brand" | "productType" | "price" | "quantity" | "discount" | "packetCount" | "dates" | "shops", string>> = {};
 
   if (!form.brand.trim()) {
     errors.brand = "Brand name is required.";
+  }
+
+  if (!form.productType.trim()) {
+    errors.productType = "Product type is required.";
   }
 
   if (form.price <= 0) {
@@ -151,6 +159,8 @@ export function ProductFormModal({
   const [form, setForm] = useState<ProductFormInput>(emptyForm);
   const [brandMode, setBrandMode] = useState<"preset" | "other">("preset");
   const [customBrand, setCustomBrand] = useState("");
+  const [productTypeMode, setProductTypeMode] = useState<"preset" | "other">("preset");
+  const [customProductType, setCustomProductType] = useState("");
   const [preview, setPreview] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -161,14 +171,17 @@ export function ProductFormModal({
   const hasValidationErrors = Object.keys(validationErrors).length > 0;
   const brandOptions = buildBrandOptions(form.category, existingBrandsByCategory, form.brand);
   const brandValue = brandMode === "other" ? customBrand : form.brand;
+  const productTypeValue = productTypeMode === "other" ? customProductType : form.productType;
 
   useEffect(() => {
     if (product) {
       const { id, soldCount, revenue, shopId, createdAt, ...rest } = product;
       const shopInventories = buildInitialInventories(product, availableShops);
       const nextBrandOptions = buildBrandOptions(rest.category, existingBrandsByCategory, rest.brand);
+      const normalizedType = normalizeProductType(rest.productType, `${rest.name} ${rest.description} ${rest.weight}`);
       setForm({
         ...rest,
+        productType: normalizedType,
         quantity: calculateTotalQuantity(shopInventories),
         shopInventories,
         lifeStage:
@@ -176,6 +189,9 @@ export function ProductFormModal({
       });
       setBrandMode(nextBrandOptions.includes(rest.brand) ? "preset" : "other");
       setCustomBrand(rest.brand);
+      const isPresetType = presetProductTypes.includes(normalizedType as (typeof presetProductTypes)[number]);
+      setProductTypeMode(isPresetType ? "preset" : "other");
+      setCustomProductType(isPresetType ? "" : normalizedType);
       setPreview(rest.image);
       return;
     }
@@ -190,6 +206,8 @@ export function ProductFormModal({
     });
     setBrandMode("preset");
     setCustomBrand("");
+    setProductTypeMode("preset");
+    setCustomProductType("");
     setPreview("");
     setUploadProgress(0);
     setUploadError("");
@@ -280,6 +298,7 @@ export function ProductFormModal({
       await onSave({
         ...form,
         brand: brandValue.trim(),
+        productType: productTypeValue.trim(),
         quantity: calculateTotalQuantity(form.shopInventories),
         gallery: form.gallery?.length ? form.gallery : [form.image],
       });
@@ -413,6 +432,47 @@ export function ProductFormModal({
                   />
                 ) : null}
                 {validationErrors.brand ? <p className="text-xs text-rose-500">{validationErrors.brand}</p> : null}
+              </label>
+
+              <label className="field">
+                <span>Product Type</span>
+                <select
+                  value={productTypeMode === "other" ? OTHER_PRODUCT_TYPE_VALUE : form.productType}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    if (nextValue === OTHER_PRODUCT_TYPE_VALUE) {
+                      setProductTypeMode("other");
+                      setCustomProductType(form.productType);
+                      return;
+                    }
+
+                    setProductTypeMode("preset");
+                    setCustomProductType("");
+                    setForm((current) => ({ ...current, productType: nextValue }));
+                  }}
+                  className="input"
+                >
+                  {presetProductTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                  <option value={OTHER_PRODUCT_TYPE_VALUE}>Other</option>
+                </select>
+                {productTypeMode === "other" ? (
+                  <input
+                    value={customProductType}
+                    onChange={(event) => {
+                      const nextType = event.target.value;
+                      setCustomProductType(nextType);
+                      setForm((current) => ({ ...current, productType: nextType }));
+                    }}
+                    className="input mt-3"
+                    placeholder="Enter product type"
+                    required
+                  />
+                ) : null}
+                {validationErrors.productType ? <p className="text-xs text-rose-500">{validationErrors.productType}</p> : null}
               </label>
 
               {categoryLifeStages[form.category]?.length ? (

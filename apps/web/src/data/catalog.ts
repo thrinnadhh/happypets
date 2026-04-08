@@ -1,4 +1,4 @@
-import { DisplaySection, Product, ProductCategory, ProductTag } from "@/types";
+import { DisplaySection, Product, ProductCategory, ProductTag, ProductTypeOption } from "@/types";
 
 export const productCategories: ProductCategory[] = [
   "Dog",
@@ -36,6 +36,15 @@ export const displaySectionLabels: Record<DisplaySection, string> = {
 };
 
 export const productTags: ProductTag[] = ["recommended", "trending", "popular"];
+
+export const presetProductTypes: ProductTypeOption[] = [
+  "Dry Food",
+  "Wet Food (Gravies)",
+  "Biscuits",
+  "Jerkys",
+  "Calcium Bones",
+  "Others",
+];
 
 export const productTagLabels: Record<ProductTag, string> = {
   recommended: "Recommended",
@@ -134,4 +143,56 @@ export function sortProductsByPosition(products: Product[]): Product[] {
 
     return left.name.localeCompare(right.name);
   });
+}
+
+export function normalizeProductType(value?: string, fallbackSource = ""): string {
+  const trimmedValue = value?.trim() ?? "";
+  if (trimmedValue) {
+    const normalizedValue = trimmedValue.toLowerCase();
+    const exactMatch = presetProductTypes.find((type) => type.toLowerCase() === normalizedValue);
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    if (normalizedValue === "wetfood" || normalizedValue === "wet food") {
+      return "Wet Food (Gravies)";
+    }
+    if (normalizedValue === "jerky" || normalizedValue === "jerkies") {
+      return "Jerkys";
+    }
+    if (normalizedValue === "calcium bone" || normalizedValue === "calcium bones") {
+      return "Calcium Bones";
+    }
+    if (normalizedValue === "other") {
+      return "Others";
+    }
+
+    return trimmedValue;
+  }
+
+  const haystack = fallbackSource.toLowerCase();
+  if (haystack.includes("gravy") || haystack.includes("wet food") || haystack.includes("wetfood")) {
+    return "Wet Food (Gravies)";
+  }
+  if (haystack.includes("biscuit")) {
+    return "Biscuits";
+  }
+  if (haystack.includes("jerky")) {
+    return "Jerkys";
+  }
+  if (haystack.includes("calcium bone")) {
+    return "Calcium Bones";
+  }
+  if (
+    haystack.includes("food") ||
+    haystack.includes("mix") ||
+    haystack.includes("pellet") ||
+    haystack.includes("flakes") ||
+    haystack.includes("seed") ||
+    haystack.includes("blend")
+  ) {
+    return "Dry Food";
+  }
+
+  return "Others";
 }
