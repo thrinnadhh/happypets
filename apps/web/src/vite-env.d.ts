@@ -40,6 +40,8 @@ interface RazorpayOptions {
 }
 
 interface Window {
+  dataLayer?: unknown[];
+  gtag?: (...args: unknown[]) => void;
   Razorpay?: new (options: RazorpayOptions) => {
     open: () => void;
     on?: (event: "payment.failed", callback: (response: { error?: { description?: string } }) => void) => void;

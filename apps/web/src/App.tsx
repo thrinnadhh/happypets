@@ -1,4 +1,5 @@
 import { AnimatePresence } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 import { AppointmentsPage } from "@/pages/customer/AppointmentsPage";
@@ -25,6 +26,26 @@ import { RoleRedirect } from "@/components/common/RoleRedirect";
 
 export default function App(): JSX.Element {
   const location = useLocation();
+  const lastTrackedPathRef = useRef<string>("");
+
+  useEffect(() => {
+    const pagePath = `${location.pathname}${location.search}${location.hash}`;
+
+    // Prevent duplicate page_view events in React StrictMode and repeated renders.
+    if (lastTrackedPathRef.current === pagePath) {
+      return;
+    }
+
+    lastTrackedPathRef.current = pagePath;
+
+    if (typeof window.gtag === "function") {
+      window.gtag("event", "page_view", {
+        page_title: document.title,
+        page_path: pagePath,
+        page_location: window.location.href,
+      });
+    }
+  }, [location.hash, location.pathname, location.search]);
 
   return (
     <AnimatePresence mode="wait">
